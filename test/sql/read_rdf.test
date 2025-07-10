@@ -1,0 +1,23 @@
+# name: test/sql/read_rdf.test
+# description: test read_rdf extension
+# group: [sql]
+
+# Before we load the extension, this will fail
+statement error
+SELECT read_rdf('Sam');
+----
+Catalog Error: Scalar Function with name read_rdf does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require read_rdf
+
+# Confirm the extension works
+query I
+SELECT read_rdf('Sam');
+----
+ReadRdf Sam 🐥
+
+query I
+SELECT read_rdf_openssl_version('Michael') ILIKE 'ReadRdf Michael, my linked OpenSSL version is OpenSSL%';
+----
+true
