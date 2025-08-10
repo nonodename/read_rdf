@@ -25,303 +25,308 @@ struct RDFReaderLocalState : public LocalTableFunctionState {
 };
 
 // Enhanced parser to extract language tag or datatype
-bool ParseTripleLine(const string &line,
-                             string &subject,
-                             string &predicate,
-                             string &object,
-                             string &lang_tag,
-                             string &datatype_iri) {
-    subject.clear();
-    predicate.clear();
-    object.clear();
-    lang_tag.clear();
-    datatype_iri.clear();
+bool ParseTripleLine(const string &line, string &subject, string &predicate, string &object, string &lang_tag,
+                     string &datatype_iri) {
+	subject.clear();
+	predicate.clear();
+	object.clear();
+	lang_tag.clear();
+	datatype_iri.clear();
 
-    enum class State {
-        Start,
-        SubjectIRI,
-        SubjectBlank,
-        PredicateIRI,
-        ObjectIRI,
-        ObjectBlank,
-        ObjectLiteral,
-        ObjectLiteralEscaped,
-        AfterLiteral,
-        LangTag,
-        DatatypeIRI,
-        End
-    };
+	enum class State {
+		Start,
+		SubjectIRI,
+		SubjectBlank,
+		PredicateIRI,
+		ObjectIRI,
+		ObjectBlank,
+		ObjectLiteral,
+		ObjectLiteralEscaped,
+		AfterLiteral,
+		LangTag,
+		DatatypeIRI,
+		End
+	};
 
-    size_t i = 0;
-    const size_t n = line.size();
+	size_t i = 0;
+	const size_t n = line.size();
 
-    auto skip_ws = [&]() {
-        while (i < n && isspace(static_cast<unsigned char>(line[i]))) i++;
-    };
+	auto skip_ws = [&]() {
+		while (i < n && isspace(static_cast<unsigned char>(line[i])))
+			i++;
+	};
 
-    auto append_utf8_codepoint = [&](uint32_t cp) {
-        if (cp <= 0x7F) {
-            object.push_back(static_cast<char>(cp));
-        } else if (cp <= 0x7FF) {
-            object.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
-            object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-        } else if (cp <= 0xFFFF) {
-            object.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
-            object.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-            object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-        } else {
-            object.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
-            object.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
-            object.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-            object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-        }
-    };
+	auto append_utf8_codepoint = [&](uint32_t cp) {
+		if (cp <= 0x7F) {
+			object.push_back(static_cast<char>(cp));
+		} else if (cp <= 0x7FF) {
+			object.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
+			object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+		} else if (cp <= 0xFFFF) {
+			object.push_back(static_cast<char>(0xE0 | ((cp >> 12) & 0x0F)));
+			object.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+			object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+		} else {
+			object.push_back(static_cast<char>(0xF0 | ((cp >> 18) & 0x07)));
+			object.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+			object.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+			object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+		}
+	};
 
-    auto parse_hex = [&](size_t start, size_t length, uint32_t &out) -> bool {
-        out = 0;
-        if (start + length > n) return false;
-        for (size_t j = 0; j < length; j++) {
-            char hc = line[start + j];
-            uint32_t val;
-            if (hc >= '0' && hc <= '9') val = hc - '0';
-            else if (hc >= 'A' && hc <= 'F') val = hc - 'A' + 10;
-            else if (hc >= 'a' && hc <= 'f') val = hc - 'a' + 10;
-            else return false;
-            out = (out << 4) | val;
-        }
-        return true;
-    };
+	auto parse_hex = [&](size_t start, size_t length, uint32_t &out) -> bool {
+		out = 0;
+		if (start + length > n)
+			return false;
+		for (size_t j = 0; j < length; j++) {
+			char hc = line[start + j];
+			uint32_t val;
+			if (hc >= '0' && hc <= '9')
+				val = hc - '0';
+			else if (hc >= 'A' && hc <= 'F')
+				val = hc - 'A' + 10;
+			else if (hc >= 'a' && hc <= 'f')
+				val = hc - 'a' + 10;
+			else
+				return false;
+			out = (out << 4) | val;
+		}
+		return true;
+	};
 
-    skip_ws();
-    State state = State::Start;
+	skip_ws();
+	State state = State::Start;
 
-    while (i < n) {
-        char c = line[i];
+	while (i < n) {
+		char c = line[i];
 
-        switch (state) {
-            case State::Start:
-                if (c == '<') {
-                    state = State::SubjectIRI;
-                    i++;
-                } else if (c == '_' && i + 1 < n && line[i + 1] == ':') {
-                    state = State::SubjectBlank;
-                    i += 2;
-                } else {
-                    return false;
-                }
-                break;
+		switch (state) {
+		case State::Start:
+			if (c == '<') {
+				state = State::SubjectIRI;
+				i++;
+			} else if (c == '_' && i + 1 < n && line[i + 1] == ':') {
+				state = State::SubjectBlank;
+				i += 2;
+			} else {
+				return false;
+			}
+			break;
 
-            case State::SubjectIRI:
-                if (c == '>') {
-                    i++;
-                    skip_ws();
-                    if (i >= n || line[i] != '<') return false;
-                    i++;
-                    state = State::PredicateIRI;
-                } else {
-                    subject.push_back(c);
-                    i++;
-                }
-                break;
+		case State::SubjectIRI:
+			if (c == '>') {
+				i++;
+				skip_ws();
+				if (i >= n || line[i] != '<')
+					return false;
+				i++;
+				state = State::PredicateIRI;
+			} else {
+				subject.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::SubjectBlank:
-                if (isspace(static_cast<unsigned char>(c))) {
-                    skip_ws();
-                    if (i >= n || line[i] != '<') return false;
-                    i++;
-                    state = State::PredicateIRI;
-                } else {
-                    subject.push_back(c);
-                    i++;
-                }
-                break;
+		case State::SubjectBlank:
+			if (isspace(static_cast<unsigned char>(c))) {
+				skip_ws();
+				if (i >= n || line[i] != '<')
+					return false;
+				i++;
+				state = State::PredicateIRI;
+			} else {
+				subject.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::PredicateIRI:
-                if (c == '>') {
-                    i++;
-                    skip_ws();
-                    if (i >= n) return false;
-                    if (line[i] == '<') {
-                        state = State::ObjectIRI;
-                        i++;
-                    } else if (line[i] == '_' && i + 1 < n && line[i + 1] == ':') {
-                        state = State::ObjectBlank;
-                        i += 2;
-                    } else if (line[i] == '"') {
-                        state = State::ObjectLiteral;
-                        i++;
-                    } else {
-                        return false;
-                    }
-                } else {
-                    predicate.push_back(c);
-                    i++;
-                }
-                break;
+		case State::PredicateIRI:
+			if (c == '>') {
+				i++;
+				skip_ws();
+				if (i >= n)
+					return false;
+				if (line[i] == '<') {
+					state = State::ObjectIRI;
+					i++;
+				} else if (line[i] == '_' && i + 1 < n && line[i + 1] == ':') {
+					state = State::ObjectBlank;
+					i += 2;
+				} else if (line[i] == '"') {
+					state = State::ObjectLiteral;
+					i++;
+				} else {
+					return false;
+				}
+			} else {
+				predicate.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::ObjectIRI:
-                if (c == '>') {
-                    state = State::End;
-                    i++;
-                } else {
-                    object.push_back(c);
-                    i++;
-                }
-                break;
+		case State::ObjectIRI:
+			if (c == '>') {
+				state = State::End;
+				i++;
+			} else {
+				object.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::ObjectBlank:
-                if (isspace(static_cast<unsigned char>(c)) || c == '.') {
-                    state = State::End;
-                } else {
-                    object.push_back(c);
-                    i++;
-                }
-                break;
+		case State::ObjectBlank:
+			if (isspace(static_cast<unsigned char>(c)) || c == '.') {
+				state = State::End;
+			} else {
+				object.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::ObjectLiteral:
-                if (c == '\\') {
-                    state = State::ObjectLiteralEscaped;
-                    i++;
-                } else if (c == '"') {
-                    state = State::AfterLiteral;
-                    i++;
-                } else {
-                    object.push_back(c);
-                    i++;
-                }
-                break;
+		case State::ObjectLiteral:
+			if (c == '\\') {
+				state = State::ObjectLiteralEscaped;
+				i++;
+			} else if (c == '"') {
+				state = State::AfterLiteral;
+				i++;
+			} else {
+				object.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::ObjectLiteralEscaped:
-                if (c == 'u') {
-                    uint32_t cp;
-                    if (!parse_hex(i + 1, 4, cp)) return false;
-                    append_utf8_codepoint(cp);
-                    i += 5; // 'u' + 4 hex
-                } else if (c == 'U') {
-                    uint32_t cp;
-                    if (!parse_hex(i + 1, 8, cp)) return false;
-                    append_utf8_codepoint(cp);
-                    i += 9; // 'U' + 8 hex
-                } else {
-                    // normal escape
-                    object.push_back(c);
-                    i++;
-                }
-                state = State::ObjectLiteral;
-                break;
+		case State::ObjectLiteralEscaped:
+			if (c == 'u') {
+				uint32_t cp;
+				if (!parse_hex(i + 1, 4, cp))
+					return false;
+				append_utf8_codepoint(cp);
+				i += 5; // 'u' + 4 hex
+			} else if (c == 'U') {
+				uint32_t cp;
+				if (!parse_hex(i + 1, 8, cp))
+					return false;
+				append_utf8_codepoint(cp);
+				i += 9; // 'U' + 8 hex
+			} else {
+				// normal escape
+				object.push_back(c);
+				i++;
+			}
+			state = State::ObjectLiteral;
+			break;
 
-            case State::AfterLiteral:
-                if (c == '@') {
-                    state = State::LangTag;
-                    i++;
-                } else if (c == '^' && i + 1 < n && line[i + 1] == '^') {
-                    i += 2;
-                    skip_ws();
-                    if (i >= n || line[i] != '<') return false;
-                    i++;
-                    state = State::DatatypeIRI;
-                } else {
-                    state = State::End;
-                }
-                break;
+		case State::AfterLiteral:
+			if (c == '@') {
+				state = State::LangTag;
+				i++;
+			} else if (c == '^' && i + 1 < n && line[i + 1] == '^') {
+				i += 2;
+				skip_ws();
+				if (i >= n || line[i] != '<')
+					return false;
+				i++;
+				state = State::DatatypeIRI;
+			} else {
+				state = State::End;
+			}
+			break;
 
-            case State::LangTag:
-                if (isspace(static_cast<unsigned char>(c)) || c == '.') {
-                    state = State::End;
-                } else {
-                    lang_tag.push_back(c);
-                    i++;
-                }
-                break;
+		case State::LangTag:
+			if (isspace(static_cast<unsigned char>(c)) || c == '.') {
+				state = State::End;
+			} else {
+				lang_tag.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::DatatypeIRI:
-                if (c == '>') {
-                    state = State::End;
-                    i++;
-                } else {
-                    datatype_iri.push_back(c);
-                    i++;
-                }
-                break;
+		case State::DatatypeIRI:
+			if (c == '>') {
+				state = State::End;
+				i++;
+			} else {
+				datatype_iri.push_back(c);
+				i++;
+			}
+			break;
 
-            case State::End:
-                skip_ws();
-                if (i < n && line[i] == '.') i++;
-                skip_ws();
-                return true;
-        }
-    }
+		case State::End:
+			skip_ws();
+			if (i < n && line[i] == '.')
+				i++;
+			skip_ws();
+			return true;
+		}
+	}
 
-    return state == State::End || state == State::ObjectIRI || state == State::ObjectBlank;
+	return state == State::End || state == State::ObjectIRI || state == State::ObjectBlank;
 }
-
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
-    auto result = make_uniq<RDFReaderBindData>();
-    result->file_path = input.inputs[0].GetValue<string>();
+	auto result = make_uniq<RDFReaderBindData>();
+	result->file_path = input.inputs[0].GetValue<string>();
 
-    return_types = {
-        LogicalType::VARCHAR,  // subject
-        LogicalType::VARCHAR,  // predicate
-        LogicalType::VARCHAR,  // object
-        LogicalType::VARCHAR,  // language_tag
-        LogicalType::VARCHAR   // datatype_iri
-    };
-    names = {"subject", "predicate", "object", "language_tag", "datatype_iri"};
+	return_types = {
+	    LogicalType::VARCHAR, // subject
+	    LogicalType::VARCHAR, // predicate
+	    LogicalType::VARCHAR, // object
+	    LogicalType::VARCHAR, // language_tag
+	    LogicalType::VARCHAR  // datatype_iri
+	};
+	names = {"subject", "predicate", "object", "language_tag", "datatype_iri"};
 
-    return std::move(result);
+	return std::move(result);
 }
 
-static unique_ptr<LocalTableFunctionState> RDFReaderInit(
-    ExecutionContext &context,
-    TableFunctionInitInput &input,
-    GlobalTableFunctionState *global_state
-) {
-    auto &bind_data = (RDFReaderBindData &)*input.bind_data;
-    auto state = make_uniq<RDFReaderLocalState>();
-    state->file.open(bind_data.file_path);
-    state->row_idx = 0;
+static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &context, TableFunctionInitInput &input,
+                                                         GlobalTableFunctionState *global_state) {
+	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
+	auto state = make_uniq<RDFReaderLocalState>();
+	state->file.open(bind_data.file_path);
+	state->row_idx = 0;
 
-    if (!state->file.is_open()) {
-        throw IOException("Could not open RDF file: " + bind_data.file_path);
-    }
+	if (!state->file.is_open()) {
+		throw IOException("Could not open RDF file: " + bind_data.file_path);
+	}
 
-    return state;
+	return state;
 }
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
-    auto &state = (RDFReaderLocalState &)*input.local_state;
+	auto &state = (RDFReaderLocalState &)*input.local_state;
 
-    idx_t count = 0;
-    string line;
-    string subject, predicate, object, lang_tag, datatype_iri;
+	idx_t count = 0;
+	string line;
+	string subject, predicate, object, lang_tag, datatype_iri;
 
-    while (count < STANDARD_VECTOR_SIZE && std::getline(state.file, line)) {
-        StringUtil::Trim(line);
-        if (line.empty() || line[0] == '#') {
-            continue;
-        }
+	while (count < STANDARD_VECTOR_SIZE && std::getline(state.file, line)) {
+		StringUtil::Trim(line);
+		if (line.empty() || line[0] == '#') {
+			continue;
+		}
 
-        if (!ParseTripleLine(line, subject, predicate, object, lang_tag, datatype_iri)) {
-            continue; // skip malformed lines
-        }
+		if (!ParseTripleLine(line, subject, predicate, object, lang_tag, datatype_iri)) {
+			continue; // skip malformed lines
+		}
 
-        output.SetValue(0, count, Value(subject));
-        output.SetValue(1, count, Value(predicate));
-        output.SetValue(2, count, Value(object));
-        output.SetValue(3, count, lang_tag.empty() ? Value() : Value(lang_tag));
-        output.SetValue(4, count, datatype_iri.empty() ? Value() : Value(datatype_iri));
-        count++;
-    }
+		output.SetValue(0, count, Value(subject));
+		output.SetValue(1, count, Value(predicate));
+		output.SetValue(2, count, Value(object));
+		output.SetValue(3, count, lang_tag.empty() ? Value() : Value(lang_tag));
+		output.SetValue(4, count, datatype_iri.empty() ? Value() : Value(datatype_iri));
+		count++;
+	}
 
-    output.SetCardinality(count);
+	output.SetCardinality(count);
 }
 
 static void LoadInternal(DatabaseInstance &instance) {
 	string extension_name = "read_rdf";
-    TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
-    ExtensionUtil::RegisterFunction(instance, tf);
+	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
+	ExtensionUtil::RegisterFunction(instance, tf);
 }
 
 void ReadRdfExtension::Load(DuckDB &db) {

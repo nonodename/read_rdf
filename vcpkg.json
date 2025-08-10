@@ -4,7 +4,5 @@
       "./extension-ci-tools/vcpkg_ports"
     ]
   },
-  "dependencies": [
-    "openssl"
-  ]
+  "dependencies": []
 }
