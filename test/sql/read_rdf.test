@@ -4,20 +4,45 @@
 
 # Before we load the extension, this will fail
 statement error
-SELECT read_rdf('Sam');
+SELECT * from read_rdf('Arbitrary file');
 ----
-Catalog Error: Scalar Function with name read_rdf does not exist!
+Catalog Error: Table Function with name read_rdf does not exist!
 
 # Require statement will ensure this test is run with this extension loaded
 require read_rdf
 
-# Confirm the extension works
-query I
-SELECT read_rdf('Sam');
+# Confirm the extension loads but doesn't read bad files 
+statement error
+SELECT * from read_rdf('not_exist.nt');
 ----
-ReadRdf Sam 🐥
+IO Error: Could not open RDF file: not_exist.nt
 
+# Load the RDF file and check triple count
 query I
-SELECT read_rdf_openssl_version('Michael') ILIKE 'ReadRdf Michael, my linked OpenSSL version is OpenSSL%';
+SELECT COUNT(*) FROM read_rdf('tests.nt');
 ----
-true
+9
+
+# Verify John Doe's name
+query T
+SELECT object FROM read_rdf('tests.nt')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Verify Jane's language-tagged name
+query T
+SELECT object FROM read_rdf('tests.nt')
+WHERE subject LIKE 'jane%'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
+# Verify emoji literal
+query T
+SELECT object FROM read_rdf('tests.nt')
+WHERE subject='http://unicode.org/duck';
+----
+🦆
+

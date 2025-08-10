@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "string": "cpp",
+        "__hash_table": "cpp",
+        "__split_buffer": "cpp",
+        "__tree": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp",
+        "ios": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "vector": "cpp",
+        "list": "cpp"
+    }
+}
