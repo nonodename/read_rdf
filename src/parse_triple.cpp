@@ -1,4 +1,5 @@
 #include "parse_triple.hpp"
+#include <cstdint>
 
 // Enhanced parser to extract language tag or datatype
 bool ParseTripleLine(const std::string &line, std::string &subject, std::string &predicate, std::string &object,
