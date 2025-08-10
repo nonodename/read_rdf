@@ -4,7 +4,9 @@ This repository is based on https://github.com/duckdb/extension-template, check 
 
 ---
 
-This extension, ReadRdf, allow you to ... <extension_goal>.
+This extension, ReadRdf, allow you to read RDF files directly into DuckDB. For now we support the NTriples [format](https://en.wikipedia.org/wiki/N-Triples) but technicaly possible to support turtle, XML serializations etc. Just more code.. Parsing of NTriples is via finite state machine (e.g. no dependencies for that).
+
+Five columns are returned for RDF. Subject, predicate, object, language_tag (if present), datatype (if present).
 
 
 ## Building
@@ -17,6 +19,7 @@ export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 Note: VCPKG is only required for extensions that want to rely on it for dependency management. If you want to develop an extension without dependencies, or want to do your own dependency management, just skip this step. Note that the example extension uses VCPKG to build with a dependency for instructive purposes, so when skipping this step the build may not work without removing the dependency.
 
+(As of now, not using VCPKG but leaving it here incase it's worth integrating something like [SERD](https://github.com/drobilla/serd). )
 ### Build steps
 Now to build the extension, run:
 ```sh
@@ -35,15 +38,23 @@ The main binaries that will be built are:
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `read_rdf()` that takes a string arguments and returns a string:
+Now we can use the features from the extension directly in DuckDB. The template contains a single table function `read_rdf()` that takes a single string arguments (the name of the NTriples file) and returns a table:
 ```
-D select read_rdf('Jane') as result;
-┌───────────────┐
-│    result     │
-│    varchar    │
-├───────────────┤
-│ ReadRdf Jane 🐥 │
-└───────────────┘
+D select * from read_rdf('tests.nt');
+┌──────────────────────┬──────────────────────┬──────────────────────┬──────────────┬────────────────────────────┐
+│       subject        │      predicate       │        object        │ language_tag │        datatype_iri        │
+│       varchar        │       varchar        │       varchar        │   varchar    │          varchar           │
+├──────────────────────┼──────────────────────┼──────────────────────┼──────────────┼────────────────────────────┤
+│ http://example.org…  │ http://www.w3.org/…  │ http://xmlns.com/f…  │ NULL         │ NULL                       │
+│ http://example.org…  │ http://xmlns.com/f…  │ John Doe             │ NULL         │ NULL                       │
+│ http://example.org…  │ http://xmlns.com/f…  │ 30                   │ NULL         │ http://www.w3.org/2001/X…  │
+│ http://example.org…  │ http://xmlns.com/f…  │ jane                 │ NULL         │ NULL                       │
+│ jane                 │ http://www.w3.org/…  │ http://xmlns.com/f…  │ NULL         │ NULL                       │
+│ jane                 │ http://xmlns.com/f…  │ Jane Smith           │ en           │ NULL                       │
+│ http://example.org…  │ http://purl.org/dc…  │ The Great Book       │ NULL         │ NULL                       │
+│ http://example.org…  │ http://purl.org/dc…  │ http://example.org…  │ NULL         │ NULL                       │
+│ http://unicode.org…  │ http://example.org…  │ 🦆                   │ NULL         │ NULL                       │
+└──────────────────────┴──────────────────────┴──────────────────────┴──────────────┴────────────────────────────┘
 ```
 
 ## Running the tests

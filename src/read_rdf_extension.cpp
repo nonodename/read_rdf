@@ -11,9 +11,7 @@
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 
-// OpenSSL linked through vcpkg
 #include <fstream>
-#include <regex>
 using namespace std;
 namespace duckdb {
 
