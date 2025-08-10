@@ -10,9 +10,9 @@
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
-#include "parse_triple.hpp"
-
+#include "include/parse_triple.hpp"
 #include <fstream>
+
 using namespace std;
 namespace duckdb {
 

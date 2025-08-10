@@ -2,7 +2,7 @@
 #include <fstream>
 #include <string>
 #include <cctype>
-#include "parse_triple.hpp"
+#include "include/parse_triple.hpp"
 
 using namespace std;
 
