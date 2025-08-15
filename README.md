@@ -58,12 +58,20 @@ D select * from read_rdf('tests.nt');
 ```
 
 ## Running the tests
-Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
+Test for this extension are SQL tests in `./test/sql`. They rely on a sample triples file `tests.nt` These SQL tests can be run using:
 ```sh
 make test
 ```
 
 ### Installing the deployed binaries
+To install from GitHub actions:
+* navigate to the [actions](https://github.com/nonodename/read_rdf/actions) for this repo
+* click on the latest successful build
+* select the architecture you want from the left hand navigation
+* open the `Run actions/upload artifact` step
+* find the artifact URL for the compiled extension
+* download, unzip and then [install](https://duckdb.org/docs/stable/extensions/advanced_installation_methods) to DudkDB
+
 To install your extension binaries from S3, you will need to do two things. Firstly, DuckDB should be launched with the
 `allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. Some examples:
 

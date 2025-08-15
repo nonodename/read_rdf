@@ -7,7 +7,7 @@
 using namespace std;
 
 // --- Main test program ---
-// Compile with g++ -std=c++17 -O2 parse_triple.cpp ntriple_parser.cpp -o test_runner
+// Compile with g++ -std=c++17 -Iinclude -O2 parse_triple.cpp ntriple_parser.cpp -o test_runner
 int main(int argc, char *argv[]) {
 	if (argc != 2) {
 		cerr << "Usage: " << argv[0] << " file.nt\n";

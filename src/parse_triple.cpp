@@ -1,7 +1,7 @@
 #include "parse_triple.hpp"
 #include <cstdint>
+#include <cctype>
 
-// Enhanced parser to extract language tag or datatype
 bool ParseTripleLine(const std::string &line, std::string &subject, std::string &predicate, std::string &object,
                      std::string &lang_tag, std::string &datatype_iri) {
 	subject.clear();
@@ -25,18 +25,18 @@ bool ParseTripleLine(const std::string &line, std::string &subject, std::string 
 		End
 	};
 
-	size_t i = 0;
-	const size_t n = line.size();
+	const char *p = line.data();
+	const char *end = p + line.size();
 
 	auto skip_ws = [&]() {
-		while (i < n && isspace(static_cast<unsigned char>(line[i])))
-			i++;
+		while (p < end && isspace(static_cast<unsigned char>(*p)))
+			++p;
 	};
 
 	auto append_utf8_codepoint = [&](uint32_t cp) {
-		if (cp <= 0x7F) {
+		if (cp <= 0x7F)
 			object.push_back(static_cast<char>(cp));
-		} else if (cp <= 0x7FF) {
+		else if (cp <= 0x7FF) {
 			object.push_back(static_cast<char>(0xC0 | ((cp >> 6) & 0x1F)));
 			object.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
 		} else if (cp <= 0xFFFF) {
@@ -51,12 +51,12 @@ bool ParseTripleLine(const std::string &line, std::string &subject, std::string 
 		}
 	};
 
-	auto parse_hex = [&](size_t start, size_t length, uint32_t &out) -> bool {
+	auto parse_hex = [&](const char *pos, size_t length, uint32_t &out) -> bool {
 		out = 0;
-		if (start + length > n)
+		if (pos + length > end)
 			return false;
-		for (size_t j = 0; j < length; j++) {
-			char hc = line[start + j];
+		for (size_t j = 0; j < length; ++j) {
+			char hc = pos[j];
 			uint32_t val;
 			if (hc >= '0' && hc <= '9')
 				val = hc - '0';
@@ -73,123 +73,122 @@ bool ParseTripleLine(const std::string &line, std::string &subject, std::string 
 
 	skip_ws();
 	State state = State::Start;
+	const char *token_start = nullptr;
 
-	while (i < n) {
-		char c = line[i];
-
+	while (p < end) {
+		char c = *p;
 		switch (state) {
 		case State::Start:
 			if (c == '<') {
 				state = State::SubjectIRI;
-				i++;
-			} else if (c == '_' && i + 1 < n && line[i + 1] == ':') {
+				++p;
+				token_start = p;
+			} else if (c == '_' && p + 1 < end && *(p + 1) == ':') {
 				state = State::SubjectBlank;
-				i += 2;
-			} else {
+				p += 2;
+				token_start = p;
+			} else
 				return false;
-			}
 			break;
 
 		case State::SubjectIRI:
 			if (c == '>') {
-				i++;
+				subject.assign(token_start, p - token_start);
+				++p;
 				skip_ws();
-				if (i >= n || line[i] != '<')
+				if (p >= end || *p != '<')
 					return false;
-				i++;
+				++p;
 				state = State::PredicateIRI;
-			} else {
-				subject.push_back(c);
-				i++;
-			}
+				token_start = p;
+			} else
+				++p;
 			break;
 
 		case State::SubjectBlank:
 			if (isspace(static_cast<unsigned char>(c))) {
+				subject.assign(token_start, p - token_start);
 				skip_ws();
-				if (i >= n || line[i] != '<')
+				if (p >= end || *p != '<')
 					return false;
-				i++;
+				++p;
 				state = State::PredicateIRI;
-			} else {
-				subject.push_back(c);
-				i++;
-			}
+				token_start = p;
+			} else
+				++p;
 			break;
 
 		case State::PredicateIRI:
 			if (c == '>') {
-				i++;
+				predicate.assign(token_start, p - token_start);
+				++p;
 				skip_ws();
-				if (i >= n)
+				if (p >= end)
 					return false;
-				if (line[i] == '<') {
+				if (*p == '<') {
 					state = State::ObjectIRI;
-					i++;
-				} else if (line[i] == '_' && i + 1 < n && line[i + 1] == ':') {
+					++p;
+					token_start = p;
+				} else if (*p == '_' && p + 1 < end && *(p + 1) == ':') {
 					state = State::ObjectBlank;
-					i += 2;
-				} else if (line[i] == '"') {
+					p += 2;
+					token_start = p;
+				} else if (*p == '"') {
 					state = State::ObjectLiteral;
-					i++;
-				} else {
+					++p;
+					object.clear();
+				} else
 					return false;
-				}
-			} else {
-				predicate.push_back(c);
-				i++;
-			}
+			} else
+				++p;
 			break;
 
 		case State::ObjectIRI:
 			if (c == '>') {
+				object.assign(token_start, p - token_start);
 				state = State::End;
-				i++;
-			} else {
-				object.push_back(c);
-				i++;
-			}
+				++p;
+			} else
+				++p;
 			break;
 
 		case State::ObjectBlank:
 			if (isspace(static_cast<unsigned char>(c)) || c == '.') {
+				object.assign(token_start, p - token_start);
 				state = State::End;
-			} else {
-				object.push_back(c);
-				i++;
-			}
+			} else
+				++p;
 			break;
 
 		case State::ObjectLiteral:
 			if (c == '\\') {
 				state = State::ObjectLiteralEscaped;
-				i++;
+				++p;
 			} else if (c == '"') {
 				state = State::AfterLiteral;
-				i++;
+				++p;
 			} else {
 				object.push_back(c);
-				i++;
+				++p;
 			}
 			break;
 
 		case State::ObjectLiteralEscaped:
 			if (c == 'u') {
 				uint32_t cp;
-				if (!parse_hex(i + 1, 4, cp))
+				if (!parse_hex(p + 1, 4, cp))
 					return false;
 				append_utf8_codepoint(cp);
-				i += 5; // 'u' + 4 hex
+				p += 5;
 			} else if (c == 'U') {
 				uint32_t cp;
-				if (!parse_hex(i + 1, 8, cp))
+				if (!parse_hex(p + 1, 8, cp))
 					return false;
 				append_utf8_codepoint(cp);
-				i += 9; // 'U' + 8 hex
+				p += 9;
 			} else {
-				// normal escape
 				object.push_back(c);
-				i++;
+				++p;
 			}
 			state = State::ObjectLiteral;
 			break;
@@ -197,42 +196,41 @@ bool ParseTripleLine(const std::string &line, std::string &subject, std::string 
 		case State::AfterLiteral:
 			if (c == '@') {
 				state = State::LangTag;
-				i++;
-			} else if (c == '^' && i + 1 < n && line[i + 1] == '^') {
-				i += 2;
+				++p;
+				token_start = p;
+			} else if (c == '^' && p + 1 < end && *(p + 1) == '^') {
+				p += 2;
 				skip_ws();
-				if (i >= n || line[i] != '<')
+				if (p >= end || *p != '<')
 					return false;
-				i++;
+				++p;
 				state = State::DatatypeIRI;
-			} else {
+				token_start = p;
+			} else
 				state = State::End;
-			}
 			break;
 
 		case State::LangTag:
 			if (isspace(static_cast<unsigned char>(c)) || c == '.') {
+				lang_tag.assign(token_start, p - token_start);
 				state = State::End;
-			} else {
-				lang_tag.push_back(c);
-				i++;
-			}
+			} else
+				++p;
 			break;
 
 		case State::DatatypeIRI:
 			if (c == '>') {
+				datatype_iri.assign(token_start, p - token_start);
 				state = State::End;
-				i++;
-			} else {
-				datatype_iri.push_back(c);
-				i++;
-			}
+				++p;
+			} else
+				++p;
 			break;
 
 		case State::End:
 			skip_ws();
-			if (i < n && line[i] == '.')
-				i++;
+			if (p < end && *p == '.')
+				++p;
 			skip_ws();
 			return true;
 		}
