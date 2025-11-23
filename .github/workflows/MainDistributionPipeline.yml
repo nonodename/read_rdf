@@ -36,4 +36,4 @@ jobs:
       duckdb_version: v1.4.2
       ci_tools_version: v1.4.2
       extension_name: read_rdf
-      format_checks: 'format;tidy'
+      format_checks: 'format' # According to the zipfs dev, ';tidy' doesn't work with vcpkg so copying their approach
