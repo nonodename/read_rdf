@@ -42,7 +42,8 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	try {
 		_sb->StartParse();
 	} catch(const std::runtime_error& re){
-		throw duckdb::IOException(re.what());
+		cerr << "Exception in RDFReaderInit: " << re.what() << "\n";
+		throw IOException(re.what());
 	}
 	state->sb = std::move(_sb);
 	return state;
@@ -56,25 +57,25 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
     const idx_t target = STANDARD_VECTOR_SIZE; // fill full chunk for throughput
 
     while (count < target) {
-		std::cerr << "Parsing a chunk " << std::endl;
-        if (parser.EverythingProcessed()) {
-        	std::cerr << "Done " << std::endl;
-            break; // EOF and no rows available
-        }
+		try{
+			if (parser.EverythingProcessed()) {
+				break; // EOF and no rows available
+			}
+			RDFRow row = parser.GetNextRow();
+			output.SetValue(0, count, Value(row.graph));
+			output.SetValue(1, count, Value(row.subject));
+			output.SetValue(2, count, Value(row.predicate));
+			output.SetValue(3, count, Value(row.object));
+			output.SetValue(4, count, Value(row.datatype));
+			output.SetValue(5, count, Value(row.lang));
+		} catch (const std::runtime_error& error){
+			string s = error.what();
+			throw SyntaxException(s);
 
-        RDFRow row = parser.GetNextRow();
-        // Columns: graph, subject, predicate, object
-        output.SetValue(0, count, Value(row.graph));
-        output.SetValue(1, count, Value(row.subject));
-        output.SetValue(2, count, Value(row.predicate));
-        output.SetValue(3, count, Value(row.object));
-		output.SetValue(4, count, Value(row.datatype));
-		output.SetValue(5, count, Value(row.lang));
-        count++;
+		}
+		count++;
     }
-
     output.SetCardinality(count);
-
 }
 
 static void LoadInternal(DatabaseInstance &instance) {

@@ -42,6 +42,7 @@ private:
                                         const SerdNode *object,
                                         const SerdNode *object_datatype,
                                         const SerdNode *object_lang);
+    static SerdStatus ErrorCallBack(void *user_data, const SerdError *error);
     static SerdStatus BaseCallback(void *, const SerdNode *);
     static SerdStatus PrefixCallback(void *, const SerdNode *, const SerdNode *);
 

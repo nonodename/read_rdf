@@ -68,8 +68,32 @@ query T
 SELECT object FROM read_rdf('tests.trig')
 WHERE subject LIKE 'jane%'
   AND graph='read_rdf'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
+  AND predicate='foaf:name';
 ----
 Jane Smith
 
+### Parse error handling
 
+# Bad ntriples
+statement error
+select count(*) from read_rdf('tests-bad.nt');
+----
+Syntax Error: SERD parsing error 3, at line 6
+
+# Bad nquads
+statement error
+select count(*) from read_rdf('tests-bad.nq');
+----
+Syntax Error: SERD parsing error 3, at line 7
+
+# Bad trig
+statement error
+select count(*) from read_rdf('tests-bad.trig');
+----
+Syntax Error: SERD parsing error 3, at line 12
+
+# Bad turtle
+statement error
+select count(*) from read_rdf('tests-bad.ttl');
+----
+Syntax Error: SERD parsing error 3, at line 8
