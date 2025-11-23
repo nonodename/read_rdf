@@ -2,83 +2,79 @@
 
 #include "read_rdf_extension.hpp"
 #include "duckdb.hpp"
+#include "include/serd_buffer.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
-#include "include/parse_triple.hpp"
-#include <fstream>
 
 using namespace std;
+
 namespace duckdb {
 
 struct RDFReaderBindData : public TableFunctionData {
 	string file_path;
+	string file_type;
+	string baseURI;
 };
 
 struct RDFReaderLocalState : public LocalTableFunctionState {
-	ifstream file;
-	idx_t row_idx;
+	std::unique_ptr<SerdBuffer> sb;
 };
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
 	result->file_path = input.inputs[0].GetValue<string>();
-
-	return_types = {
-	    LogicalType::VARCHAR, // subject
-	    LogicalType::VARCHAR, // predicate
-	    LogicalType::VARCHAR, // object
-	    LogicalType::VARCHAR, // language_tag
-	    LogicalType::VARCHAR  // datatype_iri
-	};
-	names = {"subject", "predicate", "object", "language_tag", "datatype_iri"};
-
+	names = {"graph", "subject", "predicate", "object", 
+		"object_datatype", "object_lang"};
+    return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR, 
+		LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
 	return std::move(result);
 }
 static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &context, TableFunctionInitInput &input,
                                                          GlobalTableFunctionState *global_state) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
-	state->file.open(bind_data.file_path);
-	state->row_idx = 0;
-
-	if (!state->file.is_open()) {
-		throw IOException("Could not open RDF file: " + bind_data.file_path);
+	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path,"");
+	try {
+		_sb->StartParse();
+	} catch(const std::runtime_error& re){
+		throw duckdb::IOException(re.what());
 	}
-
+	state->sb = std::move(_sb);
 	return state;
 }
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
 	auto &state = (RDFReaderLocalState &)*input.local_state;
+    auto &parser = *state.sb;
 
-	idx_t count = 0;
-	string line;
-	string subject, predicate, object, lang_tag, datatype_iri;
+    idx_t count = 0;
+    const idx_t target = STANDARD_VECTOR_SIZE; // fill full chunk for throughput
 
-	while (count < STANDARD_VECTOR_SIZE && std::getline(state.file, line)) {
-		StringUtil::Trim(line);
-		if (line.empty() || line[0] == '#') {
-			continue;
-		}
+    while (count < target) {
+		std::cerr << "Parsing a chunk " << std::endl;
+        if (parser.EverythingProcessed()) {
+        	std::cerr << "Done " << std::endl;
+            break; // EOF and no rows available
+        }
 
-		if (!ParseTripleLine(line, subject, predicate, object, lang_tag, datatype_iri)) {
-			continue; // skip malformed lines
-		}
+        RDFRow row = parser.GetNextRow();
+        // Columns: graph, subject, predicate, object
+        output.SetValue(0, count, Value(row.graph));
+        output.SetValue(1, count, Value(row.subject));
+        output.SetValue(2, count, Value(row.predicate));
+        output.SetValue(3, count, Value(row.object));
+		output.SetValue(4, count, Value(row.datatype));
+		output.SetValue(5, count, Value(row.lang));
+        count++;
+    }
 
-		output.SetValue(0, count, Value(subject));
-		output.SetValue(1, count, Value(predicate));
-		output.SetValue(2, count, Value(object));
-		output.SetValue(3, count, lang_tag.empty() ? Value() : Value(lang_tag));
-		output.SetValue(4, count, datatype_iri.empty() ? Value() : Value(datatype_iri));
-		count++;
-	}
+    output.SetCardinality(count);
 
-	output.SetCardinality(count);
 }
 
 static void LoadInternal(DatabaseInstance &instance) {

@@ -4,5 +4,9 @@
       "./extension-ci-tools/vcpkg_ports"
     ]
   },
-  "dependencies": []
+  "dependencies": [
+    "fmt",
+    "serd",
+    "pkgconf"
+  ]
 }

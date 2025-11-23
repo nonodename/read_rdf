@@ -53,6 +53,10 @@
         "streambuf": "cpp",
         "string_view": "cpp",
         "variant": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "cstddef": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp",
+        "condition_variable": "cpp"
     }
 }

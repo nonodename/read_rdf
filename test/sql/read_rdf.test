@@ -15,7 +15,7 @@ require read_rdf
 statement error
 SELECT * from read_rdf('not_exist.nt');
 ----
-IO Error: Could not open RDF file: not_exist.nt
+Invalid Error: Could not open RDF file: not_exist.nt
 
 # Load the RDF file and check triple count
 query I
@@ -45,4 +45,31 @@ SELECT object FROM read_rdf('tests.nt')
 WHERE subject='http://unicode.org/duck';
 ----
 🦆
+
+# Verify turtle parsing
+query T
+SELECT object FROM read_rdf('tests.ttl')
+WHERE subject LIKE 'jane%'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
+# Verify nquads parsing
+query T
+SELECT object FROM read_rdf('tests.nq')
+WHERE subject LIKE 'jane%'
+  AND graph='read_rdf'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
+# Verify trig parsing
+query T
+SELECT object FROM read_rdf('tests.trig')
+WHERE subject LIKE 'jane%'
+  AND graph='read_rdf'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
 

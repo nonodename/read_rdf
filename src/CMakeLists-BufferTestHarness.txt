@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.10)
+
+add_compile_options(-fsanitize=address -g -O1)
+add_link_options(-fsanitize=address)
+
+project(HelloWorld)
+
+find_package(PkgConfig REQUIRED)
+
+find_package(fmt CONFIG REQUIRED)
+
+pkg_check_modules(SERD REQUIRED IMPORTED_TARGET serd-0)
+
+add_executable(HelloWorld helloworld.cpp SerdBuffer.cpp)
+
+target_link_libraries(HelloWorld PRIVATE fmt::fmt)
+target_link_libraries(HelloWorld PRIVATE PkgConfig::SERD)
+target_include_directories(HelloWorld PRIVATE ${SERD_INCLUDE_DIRS}) 
