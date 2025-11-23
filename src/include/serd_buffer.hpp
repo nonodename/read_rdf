@@ -4,6 +4,7 @@
 #include <string>
 #include <queue>
 #include <serd/serd.h>
+#include <memory>
 using namespace std;
 
 /*
