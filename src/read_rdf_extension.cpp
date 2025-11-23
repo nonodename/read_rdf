@@ -6,7 +6,6 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
-#include "duckdb/main/extension_util.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 
@@ -28,20 +27,19 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
 	result->file_path = input.inputs[0].GetValue<string>();
-	names = {"graph", "subject", "predicate", "object", 
-		"object_datatype", "object_lang"};
-    return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR, 
-		LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
+	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
+	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
+	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
 	return std::move(result);
 }
 static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &context, TableFunctionInitInput &input,
                                                          GlobalTableFunctionState *global_state) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
-	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path,"");
+	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "");
 	try {
 		_sb->StartParse();
-	} catch(const std::runtime_error& re){
+	} catch (const std::runtime_error &re) {
 		cerr << "Exception in RDFReaderInit: " << re.what() << "\n";
 		throw IOException(re.what());
 	}
@@ -51,13 +49,13 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
 	auto &state = (RDFReaderLocalState &)*input.local_state;
-    auto &parser = *state.sb;
+	auto &parser = *state.sb;
 
-    idx_t count = 0;
-    const idx_t target = STANDARD_VECTOR_SIZE; // fill full chunk for throughput
+	idx_t count = 0;
+	const idx_t target = STANDARD_VECTOR_SIZE; // fill full chunk for throughput
 
-    while (count < target) {
-		try{
+	while (count < target) {
+		try {
 			if (parser.EverythingProcessed()) {
 				break; // EOF and no rows available
 			}
@@ -68,24 +66,23 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			output.SetValue(3, count, Value(row.object));
 			output.SetValue(4, count, Value(row.datatype));
 			output.SetValue(5, count, Value(row.lang));
-		} catch (const std::runtime_error& error){
+		} catch (const std::runtime_error &error) {
 			string s = error.what();
 			throw SyntaxException(s);
-
 		}
 		count++;
-    }
-    output.SetCardinality(count);
+	}
+	output.SetCardinality(count);
 }
 
-static void LoadInternal(DatabaseInstance &instance) {
+static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
 	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
-	ExtensionUtil::RegisterFunction(instance, tf);
+	loader.RegisterFunction(tf);
 }
 
-void ReadRdfExtension::Load(DuckDB &db) {
-	LoadInternal(*db.instance);
+void ReadRdfExtension::Load(ExtensionLoader &loader) {
+	LoadInternal(loader);
 }
 std::string ReadRdfExtension::Name() {
 	return "read_rdf";
@@ -103,14 +100,17 @@ std::string ReadRdfExtension::Version() const {
 
 extern "C" {
 
-DUCKDB_EXTENSION_API void read_rdf_init(duckdb::DatabaseInstance &db) {
-	duckdb::DuckDB db_wrapper(db);
-	db_wrapper.LoadExtension<duckdb::ReadRdfExtension>();
+DUCKDB_CPP_EXTENSION_ENTRY(read_rdf, loader) {
+	duckdb::LoadInternal(loader);
+}
+/*DUCKDB_EXTENSION_API void read_rdf_init(duckdb::DatabaseInstance &db) {
+    duckdb::DuckDB db_wrapper(db);
+    db_wrapper.LoadExtension<duckdb::ReadRdfExtension>();
 }
 
 DUCKDB_EXTENSION_API const char *read_rdf_version() {
-	return duckdb::DuckDB::LibraryVersion();
-}
+    return duckdb::DuckDB::LibraryVersion();
+}*/
 }
 
 #ifndef DUCKDB_EXTENSION_MAIN
