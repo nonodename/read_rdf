@@ -20,6 +20,9 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 target_link_libraries(${EXTENSION_NAME} PkgConfig::SERD)
 target_include_directories(${EXTENSION_NAME} PRIVATE ${SERD_INCLUDE_DIRS}) 
 
+target_link_libraries(${LOADABLE_EXTENSION_NAME} PkgConfig::SERD)
+target_include_directories(${LOADABLE_EXTENSION_NAME} PRIVATE ${SERD_INCLUDE_DIRS})
+
 install(
   TARGETS ${EXTENSION_NAME}
   EXPORT "${DUCKDB_EXPORT_SET}"
