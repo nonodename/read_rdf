@@ -26,8 +26,8 @@ build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 # On Windows, serd is built as a static library via vcpkg, but the headers default to
 # dllimport. Define SERD_STATIC to use static linking and avoid LNK2019/LNK1120 errors.
 if(WIN32)
-    #target_compile_definitions(${EXTENSION_NAME} PRIVATE SERD_STATIC)
-    #target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE SERD_STATIC)
+    target_compile_definitions(${EXTENSION_NAME} PRIVATE SERD_STATIC)
+    target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE SERD_STATIC)
 endif()
 
 install(
