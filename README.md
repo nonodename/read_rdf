@@ -20,7 +20,13 @@ export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
 VCPKG is used to find and install serd which, in itself requires pkgconfig.
 
 ### Build steps
-To build the extension, run:
+To build the extension, first clone this repo. Then in the repo base locally run:
+
+```sh
+git submodule update --init --recursive
+```
+To get the source for DuckDB and CI-tools. Next run: 
+
 ```sh
 make
 ```
