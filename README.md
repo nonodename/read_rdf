@@ -11,13 +11,7 @@ Six columns are returned for RDF. Graph, Subject, predicate, object, language_ta
 
 ## Building
 ### Managing dependencies
-DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the [installation instructions](https://vcpkg.io/en/getting-started) or just run the following:
-```shell
-git clone https://github.com/Microsoft/vcpkg.git
-./vcpkg/bootstrap-vcpkg.sh
-export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
-```
-VCPKG is used to find and install serd which, in itself requires pkgconfig.
+This project doesn't currently use VCPKG so all discussion of it removed. You don't need  that for build :-)
 
 ### Build steps
 To build the extension, first clone this repo. Then in the repo base locally run:
@@ -29,6 +23,10 @@ To get the source for DuckDB and CI-tools. Next run:
 
 ```sh
 make
+```
+If you have ninja avilable you can use that for faster builds:
+```sh
+GEN=ninja make
 ```
 The main binaries that will be built are:
 ```sh
