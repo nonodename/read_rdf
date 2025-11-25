@@ -11,7 +11,6 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
 project(${TARGET_NAME})
 include_directories(src/include)
-target_compile_definitions(read_rdf PRIVATE SERD_STATIC)
 
 set(EXTENSION_SOURCES src/read_rdf_extension.cpp src/serd_buffer.cpp src/base64.c src/byte_source.c src/env.c src/n3.c src/node.c src/reader.c src/string.c src/system.c src/uri.c src/writer.c)
 
