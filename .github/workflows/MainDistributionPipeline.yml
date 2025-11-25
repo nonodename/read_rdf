@@ -28,6 +28,8 @@ jobs:
       duckdb_version: v1.4.2
       ci_tools_version: v1.4.2
       extension_name: read_rdf
+      override_ci_tools_repository: nonodename/extension-ci-tools
+      override_ci_tools_ref: main
       # Exclude WASM builds: serd uses meson which requires pkgconf, and pkgconf
       # cannot be compiled to wasm32-emscripten (it's a host tool, not a target)
       exclude_archs: 'wasm_mvp;wasm_eh;wasm_threads'
