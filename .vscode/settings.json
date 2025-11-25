@@ -57,6 +57,16 @@
         "cstddef": "cpp",
         "fstream": "cpp",
         "iomanip": "cpp",
-        "condition_variable": "cpp"
+        "condition_variable": "cpp",
+        "serd.h": "c",
+        "serd_internal.h": "c",
+        "byte_source.h": "c",
+        "string_utils.h": "c",
+        "serd_config.h": "c",
+        "uri_utils.h": "c",
+        "warnings.h": "c",
+        "byte_sink.h": "c",
+        "stack.h": "c",
+        "try.h": "c"
     }
 }

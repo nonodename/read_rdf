@@ -19,10 +19,6 @@
   "version":"1.0",
   "name":"readrdf",
   "dependencies": [
-    "serd",
-    {
-      "name": "pkgconf",
-      "host": true
-    }
+
   ]
 }
