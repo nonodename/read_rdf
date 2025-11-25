@@ -8,18 +8,9 @@
 # note: extensions are simply uploaded to GitHub actions, deploying the extensions is done a separate step. More info on
 #       this can be found in https://github.com/duckdb/extension-template
 
-name: Extension distribution
+name: Windows Build Debug
 on:
-  workflow_call:
-    secrets:
-      VCPKG_CACHING_AWS_ACCESS_KEY_ID:
-        required: false
-      VCPKG_CACHING_AWS_SECRET_ACCESS_KEY:
-        required: false
-      VCPKG_CACHING_AWS_ENDPOINT_URL:
-        required: false
-      VCPKG_CACHING_AWS_DEFAULT_REGION:
-        required: false
+  workflow_dispatch:
     inputs:
       # The name with which the extension will be built
       extension_name:
