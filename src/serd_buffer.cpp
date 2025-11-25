@@ -30,7 +30,8 @@ static SerdSyntax SyntaxFromPath(const std::string &path) {
 SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri)
     : _file(nullptr, &fclose), _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free) {
 	file_path = path;
-	FILE *_f = std::fopen(file_path.c_str(), "rbe");
+	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows
+	FILE *_f = std::fopen(file_path.c_str(), "rb");
 	if (!_f) {
 		throw std::runtime_error("Could not open RDF file: " + file_path);
 	}
