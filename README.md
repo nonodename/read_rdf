@@ -6,12 +6,11 @@ This repository is based on https://github.com/duckdb/extension-template, check 
 
 This extension, ReadRdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/).
 
-Six columns are returned for RDF. Graph, Subject, predicate, object, language_tag (if present), datatype (if present).
-
+Six columns are returned for RDF. Some will be null if the associated values aren't present. Graph (if present), Subject, predicate, object, language_tag (if present), datatype (if present).
 
 ## Building
 ### Managing dependencies
-This project doesn't currently use VCPKG so all discussion of it removed. You don't need  that for build :-)
+This project doesn't currently use VCPKG so all discussion of it removed. You don't need  that for build 😀
 
 ### Build steps
 To build the extension, first clone this repo. Then in the repo base locally run:
@@ -19,7 +18,7 @@ To build the extension, first clone this repo. Then in the repo base locally run
 ```sh
 git submodule update --init --recursive
 ```
-To get the source for DuckDB and CI-tools. Next run: 
+To get the source for DuckDB, Serd and CI-tools. Next run: 
 
 ```sh
 make
@@ -41,27 +40,27 @@ The main binaries that will be built are:
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single table function `read_rdf()` that takes a single string arguments (the name of the NTriples file) and returns a table:
+Now we can use the features from the extension directly in DuckDB. The template contains a single table function `read_rdf()` that takes a single string arguments (the name of the RDF file) and returns a table:
 ```
-D select * from read_rdf('tests.nt');
-┌──────────────────────┬──────────────────────┬──────────────────────┬──────────────┬────────────────────────────┐
-│       subject        │      predicate       │        object        │ language_tag │        datatype_iri        │
-│       varchar        │       varchar        │       varchar        │   varchar    │          varchar           │
-├──────────────────────┼──────────────────────┼──────────────────────┼──────────────┼────────────────────────────┤
-│ http://example.org…  │ http://www.w3.org/…  │ http://xmlns.com/f…  │ NULL         │ NULL                       │
-│ http://example.org…  │ http://xmlns.com/f…  │ John Doe             │ NULL         │ NULL                       │
-│ http://example.org…  │ http://xmlns.com/f…  │ 30                   │ NULL         │ http://www.w3.org/2001/X…  │
-│ http://example.org…  │ http://xmlns.com/f…  │ jane                 │ NULL         │ NULL                       │
-│ jane                 │ http://www.w3.org/…  │ http://xmlns.com/f…  │ NULL         │ NULL                       │
-│ jane                 │ http://xmlns.com/f…  │ Jane Smith           │ en           │ NULL                       │
-│ http://example.org…  │ http://purl.org/dc…  │ The Great Book       │ NULL         │ NULL                       │
-│ http://example.org…  │ http://purl.org/dc…  │ http://example.org…  │ NULL         │ NULL                       │
-│ http://unicode.org…  │ http://example.org…  │ 🦆                   │ NULL         │ NULL                       │
-└──────────────────────┴──────────────────────┴──────────────────────┴──────────────┴────────────────────────────┘
+D select subject, predicate from read_rdf('test/rdf/tests.nt');
+┌───────────────────────────────────┬─────────────────────────────────────────────────┐
+│              subject              │                    predicate                    │
+│              varchar              │                     varchar                     │
+├───────────────────────────────────┼─────────────────────────────────────────────────┤
+│ http://example.org/person/JohnDoe │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │
+│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/name                  │
+│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/age                   │
+│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/knows                 │
+│ jane                              │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │
+│ jane                              │ http://xmlns.com/foaf/0.1/name                  │
+│ http://example.org/book/123       │ http://purl.org/dc/elements/1.1/title           │
+│ http://example.org/book/123       │ http://purl.org/dc/elements/1.1/creator         │
+│ http://unicode.org/duck           │ http://example.org/hasEmoji                     │
+└───────────────────────────────────┴─────────────────────────────────────────────────┘
 ```
 
 ## Running the tests
-Test for this extension are SQL tests in `./test/sql`. They rely on a sample triples file `tests.nt` These SQL tests can be run using:
+Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
 ```sh
 make test
 ```
@@ -69,7 +68,7 @@ make test
 ### Installing the deployed binaries
 To install from GitHub actions:
 * navigate to the [actions](https://github.com/nonodename/read_rdf/actions) for this repo
-* click on the latest successful build
+* click on the latest successful build (or build for a release)
 * select the architecture you want from the left hand navigation
 * open the `Run actions/upload artifact` step
 * find the artifact URL for the compiled extension
@@ -106,3 +105,5 @@ After running these steps, you can install and load your extension using the reg
 INSTALL read_rdf
 LOAD read_rdf
 ```
+
+If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.
