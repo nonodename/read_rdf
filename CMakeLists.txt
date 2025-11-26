@@ -74,6 +74,7 @@ target_link_libraries(${LOADABLE_EXTENSION_NAME}
 
 # Windows: force static SERD behavior (avoid dllimport)
 if (WIN32)
+    target_compile_definitions(${SERD_NAME} PRIVATE SERD_STATIC)
     target_compile_definitions(${EXTENSION_NAME} PRIVATE SERD_STATIC)
     target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE SERD_STATIC)
 endif()
