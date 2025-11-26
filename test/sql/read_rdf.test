@@ -19,13 +19,13 @@ Invalid Error: Could not open RDF file: not_exist.nt
 
 # Load the RDF file and check triple count
 query I
-SELECT COUNT(*) FROM read_rdf('tests.nt');
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt');
 ----
 9
 
 # Verify John Doe's name
 query T
-SELECT object FROM read_rdf('tests.nt')
+SELECT object FROM read_rdf('test/rdf/tests.nt')
 WHERE subject='http://example.org/person/JohnDoe'
   AND predicate='http://xmlns.com/foaf/0.1/name';
 ----
@@ -33,7 +33,7 @@ John Doe
 
 # Verify Jane's language-tagged name
 query T
-SELECT object FROM read_rdf('tests.nt')
+SELECT object FROM read_rdf('test/rdf/tests.nt')
 WHERE subject LIKE 'jane%'
   AND predicate='http://xmlns.com/foaf/0.1/name';
 ----
@@ -41,14 +41,14 @@ Jane Smith
 
 # Verify emoji literal
 query T
-SELECT object FROM read_rdf('tests.nt')
+SELECT object FROM read_rdf('test/rdf/tests.nt')
 WHERE subject='http://unicode.org/duck';
 ----
 🦆
 
 # Verify turtle parsing
 query T
-SELECT object FROM read_rdf('tests.ttl')
+SELECT object FROM read_rdf('test/rdf/tests.ttl')
 WHERE subject LIKE 'jane%'
   AND predicate='http://xmlns.com/foaf/0.1/name';
 ----
@@ -56,7 +56,7 @@ Jane Smith
 
 # Verify nquads parsing
 query T
-SELECT object FROM read_rdf('tests.nq')
+SELECT object FROM read_rdf('test/rdf/tests.nq')
 WHERE subject LIKE 'jane%'
   AND graph='read_rdf'
   AND predicate='http://xmlns.com/foaf/0.1/name';
@@ -65,7 +65,7 @@ Jane Smith
 
 # Verify trig parsing
 query T
-SELECT object FROM read_rdf('tests.trig')
+SELECT object FROM read_rdf('test/rdf/tests.trig')
 WHERE subject LIKE 'jane%'
   AND graph='read_rdf'
   AND predicate='foaf:name';
@@ -76,24 +76,24 @@ Jane Smith
 
 # Bad ntriples
 statement error
-select count(*) from read_rdf('tests-bad.nt');
+select count(*) from read_rdf('test/rdf/tests-bad.nt');
 ----
 Syntax Error: SERD parsing error 3, at line 6
 
 # Bad nquads
 statement error
-select count(*) from read_rdf('tests-bad.nq');
+select count(*) from read_rdf('test/rdf/tests-bad.nq');
 ----
 Syntax Error: SERD parsing error 3, at line 7
 
 # Bad trig
 statement error
-select count(*) from read_rdf('tests-bad.trig');
+select count(*) from read_rdf('test/rdf/tests-bad.trig');
 ----
 Syntax Error: SERD parsing error 3, at line 12
 
 # Bad turtle
 statement error
-select count(*) from read_rdf('tests-bad.ttl');
+select count(*) from read_rdf('test/rdf/tests-bad.ttl');
 ----
 Syntax Error: SERD parsing error 3, at line 8

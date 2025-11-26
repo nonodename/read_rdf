@@ -27,6 +27,9 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
 	result->file_path = input.inputs[0].GetValue<string>();
+	auto &fs = FileSystem::GetFileSystem(context);
+	string expanded = fs.ExpandPath(result->file_path);
+	string normalized = fs.NormalizeAbsolutePath(expanded);
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
 	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
