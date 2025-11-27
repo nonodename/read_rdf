@@ -1,0 +1,13 @@
+{
+  "name": "serd",
+  "version": "0.32.6",
+  "description": "A lightweight C library for RDF syntax (custom port with -Dtools=disabled for WASM support)",
+  "homepage": "https://drobilla.net/software/serd",
+  "license": "ISC",
+  "dependencies": [
+    {
+      "name": "vcpkg-tool-meson",
+      "host": true
+    }
+  ]
+}
