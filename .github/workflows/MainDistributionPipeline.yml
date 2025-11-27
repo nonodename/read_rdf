@@ -28,12 +28,9 @@ jobs:
       duckdb_version: v1.4.2
       ci_tools_version: v1.4.2
       extension_name: read_rdf
-      # TESTING: Run only WASM builds to verify -Dtools=disabled fix
-      exclude_archs: 'linux_amd64;linux_amd64_gcc4;linux_arm64;osx_amd64;osx_arm64;windows_amd64'
 
   code-quality-check:
     name: Code Quality Check
-    if: false  # Disabled temporarily - testing WASM only
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.4.2
     with:
       duckdb_version: v1.4.2
