@@ -131,22 +131,46 @@ void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 	}
 }
 
-auto safe_str = [](const SerdNode *node) -> std::string {
+// Helper to convert a SerdNode to string (for non-URI nodes like literals, langs, datatypes)
+static std::string safe_str(const SerdNode *node) {
 	if (!node || !node->buf || node->n_bytes == 0)
 		return {};
 	return std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
-};
+}
+
+// Helper to expand a URI node using the environment and return the string
+// Falls back to original node if expansion fails or node is not a URI
+static std::string expand_uri(const SerdEnv *env, const SerdNode *node) {
+	if (!node || !node->buf || node->n_bytes == 0)
+		return {};
+
+	// Only expand URI nodes
+	if (node->type == SERD_URI) {
+		SerdNode expanded = serd_env_expand_node(env, node);
+		if (expanded.buf && expanded.n_bytes > 0) {
+			std::string result(reinterpret_cast<const char *>(expanded.buf), expanded.n_bytes);
+			serd_node_free(&expanded);
+			return result;
+		}
+	}
+
+	// For non-URIs or if expansion failed, return original
+	return std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
+}
 
 SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, const SerdNode *graph,
                                          const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
                                          const SerdNode *object_datatype, const SerdNode *object_lang) {
-	//  cerr << ".";
 	auto *self = static_cast<SerdBuffer *>(user_data);
+	SerdEnv *env = self->_env.get();
+
 	RDFRow row;
-	row.graph = safe_str(graph);
-	row.subject = safe_str(subject);
-	row.predicate = safe_str(predicate);
-	row.object = safe_str(object);
+	// Expand URI nodes (graph, subject, predicate, object) against the base URI
+	row.graph = expand_uri(env, graph);
+	row.subject = expand_uri(env, subject);
+	row.predicate = expand_uri(env, predicate);
+	row.object = expand_uri(env, object);
+	// Datatype and lang are not relative URIs, use simple conversion
 	row.datatype = safe_str(object_datatype);
 	row.lang = safe_str(object_lang);
 	self->rows.push(std::move(row));
@@ -159,7 +183,11 @@ SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	                         std::to_string(error->line));
 	return SERD_SUCCESS;
 }
-SerdStatus SerdBuffer::BaseCallback(void *, const SerdNode *) {
+SerdStatus SerdBuffer::BaseCallback(void *user_data, const SerdNode *uri) {
+	auto *self = static_cast<SerdBuffer *>(user_data);
+	// Update the environment's base URI when @base is encountered in the file
+	// This ensures file @base overrides user-provided base_uri (W3C spec)
+	serd_env_set_base_uri(self->_env.get(), uri);
 	return SERD_SUCCESS;
 }
 SerdStatus SerdBuffer::PrefixCallback(void *, const SerdNode *, const SerdNode *) {

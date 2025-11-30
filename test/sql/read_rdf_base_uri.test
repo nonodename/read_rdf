@@ -1,0 +1,43 @@
+# name: test/sql/read_rdf_base_uri.test
+# description: Test base_uri parameter for read_rdf
+# group: [rdf]
+
+require read_rdf
+
+# TC-01: User base provided, no @base in file
+# Validates: - user base_uri resolves relative URIs
+query II
+SELECT subject, object FROM read_rdf('test/rdf/no_base.ttl', base_uri := 'http://test.org/')
+ORDER BY subject
+----
+http://test.org/alice	http://test.org/bob
+http://test.org/s	http://test.org/o
+
+# TC-02: User base provided, file has @base - file wins
+# Validates: - file @base overrides user base_uri
+query I
+SELECT subject FROM read_rdf('test/rdf/with_base.ttl', base_uri := 'http://user.org/')
+WHERE subject LIKE '%/s'
+----
+http://file.org/s
+
+# TC-03: No base anywhere - relative URIs stay relative
+query I
+SELECT subject FROM read_rdf('test/rdf/no_base.ttl')
+WHERE subject = 's'
+----
+s
+
+# TC-04: File has @base, no user base - file base used
+query I
+SELECT subject FROM read_rdf('test/rdf/with_base.ttl')
+WHERE subject LIKE '%/s'
+----
+http://file.org/s
+
+# TC-05: Empty string base = no base
+query I
+SELECT subject FROM read_rdf('test/rdf/no_base.ttl', base_uri := '')
+WHERE subject = 's'
+----
+s

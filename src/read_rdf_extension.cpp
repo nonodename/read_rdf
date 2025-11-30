@@ -27,6 +27,13 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
 	result->file_path = input.inputs[0].GetValue<string>();
+
+	// Handle optional base_uri parameter (named parameter)
+	auto base_uri_param = input.named_parameters.find("base_uri");
+	if (base_uri_param != input.named_parameters.end() && !base_uri_param->second.IsNull()) {
+		result->baseURI = base_uri_param->second.GetValue<string>();
+	}
+
 	auto &fs = FileSystem::GetFileSystem(context);
 	string expanded = fs.ExpandPath(result->file_path);
 	string normalized = fs.NormalizeAbsolutePath(expanded);
@@ -39,7 +46,7 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
                                                          GlobalTableFunctionState *global_state) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
-	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "");
+	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, bind_data.baseURI);
 	try {
 		_sb->StartParse();
 	} catch (const std::runtime_error &re) {
@@ -81,6 +88,8 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
 	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
+	// Register optional named parameter for base URI
+	tf.named_parameters["base_uri"] = LogicalType::VARCHAR;
 	loader.RegisterFunction(tf);
 }
 
