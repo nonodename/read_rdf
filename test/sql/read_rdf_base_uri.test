@@ -1,6 +1,6 @@
 # name: test/sql/read_rdf_base_uri.test
 # description: Test base_uri parameter for read_rdf
-# group: [rdf]
+# group: [sql]
 
 require read_rdf
 
