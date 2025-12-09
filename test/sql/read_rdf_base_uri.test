@@ -41,3 +41,49 @@ SELECT subject FROM read_rdf('test/rdf/no_base.ttl', base_uri := '')
 WHERE subject = 's'
 ----
 s
+
+# TC-06: Trailing slash behavior - base without trailing slash
+# Validates: - W3C URI resolution: base without path gets / added before relative
+query I
+SELECT subject FROM read_rdf('test/rdf/no_base.ttl', base_uri := 'http://test.org')
+WHERE subject LIKE 'http://test.org/%'
+ORDER BY subject
+LIMIT 1
+----
+http://test.org/alice
+
+# TC-07: Trailing slash behavior - base with trailing slash
+# Validates: - Same result as TC-06 (W3C spec handles both correctly)
+query I
+SELECT subject FROM read_rdf('test/rdf/no_base.ttl', base_uri := 'http://test.org/')
+WHERE subject LIKE 'http://test.org/%'
+ORDER BY subject
+LIMIT 1
+----
+http://test.org/alice
+
+# TC-08: Multiple @base directives in file - later one wins
+# Validates: - Each @base applies to statements after it
+query II
+SELECT subject, object FROM read_rdf('test/rdf/multi_base.ttl')
+ORDER BY subject
+----
+http://first.org/first_subject	http://first.org/first_object
+http://second.org/second_subject	http://second.org/second_object
+
+# TC-09: User base + multiple @base in file - file bases take precedence
+# Validates: - User base used before first @base, file @base used after
+query II
+SELECT subject, object FROM read_rdf('test/rdf/multi_base.ttl', base_uri := 'http://user.org/')
+ORDER BY subject
+----
+http://first.org/first_subject	http://first.org/first_object
+http://second.org/second_subject	http://second.org/second_object
+
+# TC-10: Standard IRI in base_uri
+# Validates: - Standard IRIs are handled correctly
+query I
+SELECT subject FROM read_rdf('test/rdf/unicode_test.ttl', base_uri := 'http://example.org/ontologie/')
+WHERE subject LIKE '%entity'
+----
+http://example.org/ontologie/entity

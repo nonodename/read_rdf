@@ -1,0 +1,8 @@
+@base <http://first.org/> .
+@prefix ex: <http://example.org/> .
+
+<first_subject> ex:p <first_object> .
+
+@base <http://second.org/> .
+
+<second_subject> ex:p <second_object> .

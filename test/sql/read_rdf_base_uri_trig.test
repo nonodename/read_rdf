@@ -1,0 +1,43 @@
+# name: test/sql/read_rdf_base_uri_trig.test
+# description: Test base_uri parameter for read_rdf with TriG format (named graphs)
+# group: [sql]
+
+require read_rdf
+
+# TC-01: TriG - User base provided, no @base in file
+# Validates: - user base_uri resolves relative URIs in both graph and triples
+query III
+SELECT graph, subject, object FROM read_rdf('test/rdf/no_base.trig', base_uri := 'http://test.org/')
+ORDER BY subject
+----
+http://test.org/graph1	http://test.org/alice	http://test.org/bob
+http://test.org/graph1	http://test.org/s	http://test.org/o
+
+# TC-02: TriG - User base provided, file has @base - file wins
+# Validates: - file @base overrides user base_uri
+query II
+SELECT graph, subject FROM read_rdf('test/rdf/with_base.trig', base_uri := 'http://user.org/')
+WHERE subject LIKE '%/s'
+----
+http://file.org/graph1	http://file.org/s
+
+# TC-03: TriG - No base anywhere - relative URIs stay relative
+query II
+SELECT graph, subject FROM read_rdf('test/rdf/no_base.trig')
+WHERE subject = 's'
+----
+graph1	s
+
+# TC-04: TriG - File has @base, no user base - file base used
+query II
+SELECT graph, subject FROM read_rdf('test/rdf/with_base.trig')
+WHERE subject LIKE '%/s'
+----
+http://file.org/graph1	http://file.org/s
+
+# TC-05: TriG - Empty string base = no base
+query II
+SELECT graph, subject FROM read_rdf('test/rdf/no_base.trig', base_uri := '')
+WHERE subject = 's'
+----
+graph1	s

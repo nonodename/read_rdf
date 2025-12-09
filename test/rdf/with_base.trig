@@ -1,0 +1,7 @@
+@base <http://file.org/> .
+@prefix ex: <http://example.org/> .
+
+<graph1> {
+    <s> ex:p <o> .
+    <alice> ex:knows <bob> .
+}

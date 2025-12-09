@@ -152,6 +152,8 @@ static std::string expand_uri(const SerdEnv *env, const SerdNode *node) {
 			serd_node_free(&expanded);
 			return result;
 		}
+		// Free even if expansion failed (handles edge cases safely)
+		serd_node_free(&expanded);
 	}
 
 	// For non-URIs or if expansion failed, return original

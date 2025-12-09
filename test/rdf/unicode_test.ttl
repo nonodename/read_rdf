@@ -1,0 +1,3 @@
+@prefix ex: <http://example.org/> .
+
+<entity> ex:p <value> .
