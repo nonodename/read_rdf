@@ -73,9 +73,7 @@ void SerdBuffer::StartParse() {
 */
 bool SerdBuffer::EverythingProcessed() {
 	if (rows.empty()) {
-		// cerr << "Rows empty\n";
 		if (eof) {
-			//   cerr << "EOF reached\n";
 			return true;
 		}
 		ParseNextBatch(10);
@@ -100,7 +98,6 @@ RDFRow SerdBuffer::GetNextRow() {
 void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 	while (rows.size() < min_rows && !eof) {
 		SerdStatus st = serd_reader_read_chunk(_reader.get());
-		// cerr << "Read a chunk, status: " << st << "\n";
 		switch (st) {
 		case SERD_SUCCESS:
 			eof = false;
@@ -108,7 +105,6 @@ void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 		case SERD_FAILURE:
 			serd_reader_end_stream(_reader.get());
 			if (std::feof(_file.get())) {
-				//      cerr << "End of file reached, closing stream\n";
 				eof = true;
 			} else {
 				throw std::runtime_error("SERD failure");
@@ -140,7 +136,6 @@ auto safe_str = [](const SerdNode *node) -> std::string {
 SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, const SerdNode *graph,
                                          const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
                                          const SerdNode *object_datatype, const SerdNode *object_lang) {
-	//  cerr << ".";
 	auto *self = static_cast<SerdBuffer *>(user_data);
 	RDFRow row;
 	row.graph = safe_str(graph);
