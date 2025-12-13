@@ -26,6 +26,11 @@ struct RDFReaderLocalState : public LocalTableFunctionState {
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
+	// TODO
+	// Check input count
+	// Permit caller to override file type, baseURI etc.
+	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
+	// Permit caller to expand prefixed values
 	result->file_path = input.inputs[0].GetValue<string>();
 	auto &fs = FileSystem::GetFileSystem(context);
 	string expanded = fs.ExpandPath(result->file_path);
