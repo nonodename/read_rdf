@@ -6,3 +6,6 @@
 	path = extension-ci-tools
 	url = https://github.com/duckdb/extension-ci-tools
 	branch = main
+[submodule "serd"]
+	path = serd
+	url = https://github.com/drobilla/serd.git

@@ -3,7 +3,7 @@
 
 #include <string>
 #include <queue>
-#include "serd.h"
+#include <serd/serd.h>
 #include <memory>
 using namespace std;
 
