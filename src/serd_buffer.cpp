@@ -118,11 +118,11 @@ void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 		case SERD_ERR_INTERNAL:
 			throw std::runtime_error("SERD Error: " + SerdStatusToString(st));
 		case SERD_ERR_BAD_SYNTAX:
-			if(_strict_parsing)
+			if (_strict_parsing)
 				throw std::runtime_error("SERD bad RDF syntax");
 			else {
 				cerr << "Skipping in parse next batch";
-				if(serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
+				if (serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
 					throw std::runtime_error("SERD failure while skipping after syntax error");
 			}
 		default:
@@ -138,21 +138,33 @@ auto safe_str = [](const SerdNode *node) -> std::string {
 	return std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
 };
 
-string SerdBuffer::SerdStatusToString(SerdStatus status){
-    switch (status) {
-        case SERD_SUCCESS:        return "Success";
-        case SERD_FAILURE:        return "Non-fatal failure";
-        case SERD_ERR_UNKNOWN:    return "Unknown error";
-        case SERD_ERR_BAD_SYNTAX: return "Invalid syntax";
-        case SERD_ERR_BAD_ARG:    return "Invalid argument";
-        case SERD_ERR_NOT_FOUND:  return "Not found";
-        case SERD_ERR_ID_CLASH:   return "ID clash";
-        case SERD_ERR_BAD_CURIE:  return "Bad CURIE";
-        case SERD_ERR_INTERNAL:   return "Internal error";
-        case SERD_ERR_BAD_WRITE:  return "Write error";
-        case SERD_ERR_BAD_TEXT:   return "Bad text encoding";
-        default:                  return "Unrecognized SerdStatus";
-    }
+string SerdBuffer::SerdStatusToString(SerdStatus status) {
+	switch (status) {
+	case SERD_SUCCESS:
+		return "Success";
+	case SERD_FAILURE:
+		return "Non-fatal failure";
+	case SERD_ERR_UNKNOWN:
+		return "Unknown error";
+	case SERD_ERR_BAD_SYNTAX:
+		return "Invalid syntax";
+	case SERD_ERR_BAD_ARG:
+		return "Invalid argument";
+	case SERD_ERR_NOT_FOUND:
+		return "Not found";
+	case SERD_ERR_ID_CLASH:
+		return "ID clash";
+	case SERD_ERR_BAD_CURIE:
+		return "Bad CURIE";
+	case SERD_ERR_INTERNAL:
+		return "Internal error";
+	case SERD_ERR_BAD_WRITE:
+		return "Write error";
+	case SERD_ERR_BAD_TEXT:
+		return "Bad text encoding";
+	default:
+		return "Unrecognized SerdStatus";
+	}
 }
 
 SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, const SerdNode *graph,
@@ -176,7 +188,7 @@ SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
 	if (self->_strict_parsing)
 		throw std::runtime_error("SERD parsing error '" + SerdStatusToString(error->status) + "', at line " +
-	                         std::to_string(error->line));
+		                         std::to_string(error->line));
 	return SERD_SUCCESS;
 }
 SerdStatus SerdBuffer::BaseCallback(void *, const SerdNode *) {

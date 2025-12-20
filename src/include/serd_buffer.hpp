@@ -34,7 +34,7 @@ public:
 
 private:
 	void ParseNextBatch(uint64_t min_rows);
-    static string SerdStatusToString(SerdStatus status);
+	static string SerdStatusToString(SerdStatus status);
 	static SerdStatus StatementCallback(void *user_data, SerdStatementFlags /*flags*/, const SerdNode *graph,
 	                                    const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
 	                                    const SerdNode *object_datatype, const SerdNode *object_lang);
