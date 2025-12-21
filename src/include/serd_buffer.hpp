@@ -24,7 +24,7 @@ struct RDFRow {
 */
 class SerdBuffer {
 public:
-	SerdBuffer(const std::string &path, const std::string &base_uri);
+	SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing = true);
 
 	~SerdBuffer();
 
@@ -34,7 +34,7 @@ public:
 
 private:
 	void ParseNextBatch(uint64_t min_rows);
-
+	static string SerdStatusToString(SerdStatus status);
 	static SerdStatus StatementCallback(void *user_data, SerdStatementFlags /*flags*/, const SerdNode *graph,
 	                                    const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
 	                                    const SerdNode *object_datatype, const SerdNode *object_lang);
@@ -49,6 +49,7 @@ private:
 	std::string file_path;
 	std::queue<RDFRow> rows;
 	bool eof = false;
+	bool _strict_parsing = true;
 	uint64_t target_rows;
 };
 

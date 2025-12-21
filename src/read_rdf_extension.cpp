@@ -17,6 +17,7 @@ struct RDFReaderBindData : public TableFunctionData {
 	string file_path;
 	string file_type;
 	string baseURI;
+	bool strict_parsing = true;
 };
 
 struct RDFReaderLocalState : public LocalTableFunctionState {
@@ -32,6 +33,12 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
 	// Permit caller to expand prefixed values
 	result->file_path = input.inputs[0].GetValue<string>();
+	auto strict_parsing_param = input.named_parameters.find("strict_parsing");
+	if (strict_parsing_param != input.named_parameters.end()) {
+		result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
+	} else {
+		result->strict_parsing = true;
+	}
 	auto &fs = FileSystem::GetFileSystem(context);
 	string expanded = fs.ExpandPath(result->file_path);
 	string normalized = fs.NormalizeAbsolutePath(expanded);
@@ -44,7 +51,7 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
                                                          GlobalTableFunctionState *global_state) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
-	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "");
+	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing);
 	try {
 		_sb->StartParse();
 	} catch (const std::runtime_error &re) {
@@ -86,6 +93,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
 	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
+	tf.named_parameters["strict_parsing"] = LogicalType::BOOLEAN;
 	loader.RegisterFunction(tf);
 }
 
@@ -100,7 +108,7 @@ std::string ReadRdfExtension::Version() const {
 #ifdef EXT_VERSION_READ_RDF
 	return EXT_VERSION_READ_RDF;
 #else
-	return "";
+	return "0.0.1-unknown";
 #endif
 }
 
@@ -111,14 +119,6 @@ extern "C" {
 DUCKDB_CPP_EXTENSION_ENTRY(read_rdf, loader) {
 	duckdb::LoadInternal(loader);
 }
-/*DUCKDB_EXTENSION_API void read_rdf_init(duckdb::DatabaseInstance &db) {
-    duckdb::DuckDB db_wrapper(db);
-    db_wrapper.LoadExtension<duckdb::ReadRdfExtension>();
-}
-
-DUCKDB_EXTENSION_API const char *read_rdf_version() {
-    return duckdb::DuckDB::LibraryVersion();
-}*/
 }
 
 #ifndef DUCKDB_EXTENSION_MAIN

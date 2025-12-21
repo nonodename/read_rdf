@@ -27,7 +27,7 @@ static SerdSyntax SyntaxFromPath(const std::string &path) {
 /*
     SerdBuffer constructor. Using managed pointers for the SERD calls
 */
-SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri)
+SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing)
     : _file(nullptr, &fclose), _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free) {
 	file_path = path;
 	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows
@@ -45,12 +45,14 @@ SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri)
 		throw std::runtime_error("Unable to create serd environment");
 	}
 	_env.reset(t_env);
+	_strict_parsing = strict_parsing;
 	SerdSyntax syntax = SyntaxFromPath(path);
 	SerdReader *t_reader =
 	    serd_reader_new(syntax, this, nullptr, &BaseCallback, &PrefixCallback, &StatementCallback, nullptr);
 	if (!t_reader) {
 		throw std::runtime_error("serd_reader_new failed");
 	}
+	serd_reader_set_strict(t_reader, strict_parsing);
 	serd_reader_set_error_sink(t_reader, &ErrorCallBack, this);
 	_reader.reset(t_reader);
 }
@@ -111,15 +113,18 @@ void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 			}
 			break;
 		case SERD_ERR_BAD_CURIE:
-			throw std::runtime_error("SERD bad CURIE error");
 		case SERD_ERR_ID_CLASH:
-			throw std::runtime_error("SERD ID clash error");
 		case SERD_ERR_BAD_TEXT:
-			throw std::runtime_error("SERD bad text encoding");
-		case SERD_ERR_BAD_SYNTAX:
-			throw std::runtime_error("SERD bad RDF syntax");
 		case SERD_ERR_INTERNAL:
-			throw std::runtime_error("SERD internal error");
+			throw std::runtime_error("SERD Error: " + SerdStatusToString(st));
+		case SERD_ERR_BAD_SYNTAX:
+			if (_strict_parsing)
+				throw std::runtime_error("SERD bad RDF syntax");
+			else {
+				cerr << "Skipping in parse next batch";
+				if (serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
+					throw std::runtime_error("SERD failure while skipping after syntax error");
+			}
 		default:
 			throw std::runtime_error("SERD other error");
 			break;
@@ -132,6 +137,35 @@ auto safe_str = [](const SerdNode *node) -> std::string {
 		return {};
 	return std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
 };
+
+string SerdBuffer::SerdStatusToString(SerdStatus status) {
+	switch (status) {
+	case SERD_SUCCESS:
+		return "Success";
+	case SERD_FAILURE:
+		return "Non-fatal failure";
+	case SERD_ERR_UNKNOWN:
+		return "Unknown error";
+	case SERD_ERR_BAD_SYNTAX:
+		return "Invalid syntax";
+	case SERD_ERR_BAD_ARG:
+		return "Invalid argument";
+	case SERD_ERR_NOT_FOUND:
+		return "Not found";
+	case SERD_ERR_ID_CLASH:
+		return "ID clash";
+	case SERD_ERR_BAD_CURIE:
+		return "Bad CURIE";
+	case SERD_ERR_INTERNAL:
+		return "Internal error";
+	case SERD_ERR_BAD_WRITE:
+		return "Write error";
+	case SERD_ERR_BAD_TEXT:
+		return "Bad text encoding";
+	default:
+		return "Unrecognized SerdStatus";
+	}
+}
 
 SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, const SerdNode *graph,
                                          const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
@@ -148,10 +182,13 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 	return SERD_SUCCESS;
 }
 
+// While SERD does provide a skip function for syntax errors (serd_reader_skip_until_byte)
+// it doesn't seem like calling it actually helps.
 SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
-	throw std::runtime_error("SERD parsing error " + std::to_string(error->status) + ", at line " +
-	                         std::to_string(error->line));
+	if (self->_strict_parsing)
+		throw std::runtime_error("SERD parsing error '" + SerdStatusToString(error->status) + "', at line " +
+		                         std::to_string(error->line));
 	return SERD_SUCCESS;
 }
 SerdStatus SerdBuffer::BaseCallback(void *, const SerdNode *) {
