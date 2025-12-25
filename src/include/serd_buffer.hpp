@@ -3,12 +3,13 @@
 
 #include <string>
 #include <queue>
+#include "duckdb.hpp"
 #include <serd/serd.h>
 #include <memory>
 using namespace std;
 
 /*
-    Holder for a single row of RDP
+    Holder for a single row of RDF
 */
 struct RDFRow {
 	string graph;
@@ -28,12 +29,13 @@ public:
 
 	~SerdBuffer();
 
+	void PopulateChunk(duckdb::DataChunk &output);
 	void StartParse();
-	RDFRow GetNextRow();
-	bool EverythingProcessed();
 
 private:
-	void ParseNextBatch(uint64_t min_rows);
+	// Helper to write to vector
+	void WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node);
+
 	static string SerdStatusToString(SerdStatus status);
 	static SerdStatus StatementCallback(void *user_data, SerdStatementFlags /*flags*/, const SerdNode *graph,
 	                                    const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
@@ -43,6 +45,11 @@ private:
 	static SerdStatus PrefixCallback(void *, const SerdNode *, const SerdNode *);
 
 private:
+	duckdb::DataChunk *_current_chunk = nullptr;
+	duckdb::idx_t _current_count = 0;
+	// Small buffer for when Serd emits more rows than fit in the current chunk
+	std::deque<RDFRow> _overflow_buffer;
+
 	std::unique_ptr<SerdReader, decltype(&serd_reader_free)> _reader;
 	std::unique_ptr<FILE, decltype(&fclose)> _file;
 	std::unique_ptr<SerdEnv, decltype(&serd_env_free)> _env;

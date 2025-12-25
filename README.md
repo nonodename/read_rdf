@@ -107,3 +107,20 @@ LOAD read_rdf
 ```
 
 If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.
+
+## Performance
+
+```
+Use ".open FILENAME" to reopen on a persistent database.
+D .timer on
+D select count(*) from read_rdf('../geoNames/geonames.nt');
+100% ▕██████████████████████████████████████▏ (00:09:14.98 elapsed)     
+┌──────────────────┐
+│   count_star()   │
+│      int64       │
+├──────────────────┤
+│    181846462     │
+│ (181.85 million) │
+└──────────────────┘
+Run Time (s): real 554.978 user 542.400962 sys 9.780090
+```
