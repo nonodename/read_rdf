@@ -56,6 +56,8 @@ private:
 	std::string file_path;
 	std::queue<RDFRow> rows;
 	bool eof = false;
+	bool _has_error = false;
+	std::string _error_message;
 	bool _strict_parsing = true;
 	uint64_t target_rows;
 };

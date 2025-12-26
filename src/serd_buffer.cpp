@@ -111,7 +111,11 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 			if (std::feof(_file.get())) {
 				eof = true;
 			} else {
-				throw std::runtime_error("SERD failure");
+				if (_has_error) {
+					throw duckdb::SyntaxException(_error_message);
+				} else {
+					throw std::runtime_error("SERD failure");
+				}
 			}
 			break;
 		case SERD_ERR_BAD_CURIE:
@@ -120,9 +124,13 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		case SERD_ERR_INTERNAL:
 			throw std::runtime_error("SERD Error: " + SerdStatusToString(st));
 		case SERD_ERR_BAD_SYNTAX:
-			if (_strict_parsing)
-				throw duckdb::SyntaxException("SERD bad RDF syntax");
-			else {
+			if (_strict_parsing) {
+				if (_has_error) {
+					throw duckdb::SyntaxException(_error_message);
+				} else {
+					throw duckdb::SyntaxException("SERD bad RDF syntax");
+				}
+			} else {
 				cerr << "Skipping in parse next batch";
 				if (serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
 					throw std::runtime_error("SERD failure while skipping after syntax error");
@@ -186,7 +194,6 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 		row.graph = safe_str(graph);
 		row.datatype = safe_str(object_datatype);
 		row.lang = safe_str(object_lang);
-		// ... fill other fields (slow path, rarely hit) ...
 		self->_overflow_buffer.push_back(std::move(row));
 		return SERD_SUCCESS;
 	}
@@ -208,10 +215,13 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 // it doesn't seem like calling it actually helps.
 SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
-	if (self->_strict_parsing)
-		throw duckdb::SyntaxException("SERD parsing error '" + SerdStatusToString(error->status) + "', at line " +
-		                              std::to_string(error->line));
-	return SERD_SUCCESS;
+	if (self->_strict_parsing) {
+		self->_has_error = true;
+		self->_error_message =
+		    "SERD parsing error '" + SerdStatusToString(error->status) + "', at line " + std::to_string(error->line);
+		return SERD_FAILURE;
+	} else
+		return SERD_SUCCESS;
 }
 SerdStatus SerdBuffer::BaseCallback(void *, const SerdNode *) {
 	return SERD_SUCCESS;
