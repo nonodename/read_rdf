@@ -58,7 +58,15 @@ SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, con
 	_reader.reset(t_reader);
 }
 
-SerdBuffer::~SerdBuffer() = default;
+SerdBuffer::~SerdBuffer() {
+	if (_reader.get())
+		serd_reader_end_stream(_reader.get());
+	serd_reader_free(_reader.release());
+	if (_env.get())
+		serd_env_free(_env.release());
+	if (_file.get())
+		std::fclose(_file.release());
+}
 
 /*
     Start parsing the RDF file. Only needs to be called once.

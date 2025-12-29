@@ -58,6 +58,9 @@ D select subject, predicate from read_rdf('test/rdf/tests.nt');
 │ http://unicode.org/duck           │ http://example.org/hasEmoji                     │
 └───────────────────────────────────┴─────────────────────────────────────────────────┘
 ```
+### Optional Parameters
+
+One optional parameter is currently supported: `strict_parsing`. This defaults to true and exposes the underlying strict parsing feature of the serd RDF parsing library. When false it permits malformed URIs. To disable strict parsing, pass `strict_parsing = false`.
 
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
@@ -108,19 +111,9 @@ LOAD read_rdf
 
 If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.
 
-## Performance
+## Future enhancements
 
-```
-Use ".open FILENAME" to reopen on a persistent database.
-D .timer on
-D select count(*) from read_rdf('../geoNames/geonames.nt');
-100% ▕██████████████████████████████████████▏ (00:09:14.98 elapsed)     
-┌──────────────────┐
-│   count_star()   │
-│      int64       │
-├──────────────────┤
-│    181846462     │
-│ (181.85 million) │
-└──────────────────┘
-Run Time (s): real 554.978 user 542.400962 sys 9.780090
-```
+Potential future enhancements are 
+* enable/disable prefix expansion
+* support file globbing (e.g. a directory of RDF files)
+* potentially support RDF XML using [libxml2](https://gitlab.gnome.org/GNOME/libxml2) SAX parsing
