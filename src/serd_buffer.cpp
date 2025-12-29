@@ -1,5 +1,6 @@
 
 #include "include/serd_buffer.hpp"
+#include "duckdb/common/exception.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <memory>
@@ -76,48 +77,53 @@ void SerdBuffer::StartParse() {
 	serd_reader_start_stream(_reader.get(), _file.get(), (uint8_t *)fp, false);
 }
 
-/*
-    Returns true if all RDF has been parsed
-    AND rows have been processed.
-    Handles invoking SERD to refresh the buffer as needed.
-*/
-bool SerdBuffer::EverythingProcessed() {
-	if (rows.empty()) {
-		if (eof) {
-			return true;
-		}
-		ParseNextBatch(10);
-		return rows.empty();
-	} else {
-		return false;
+void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node) {
+	if (!node || !node->buf) {
+		duckdb::FlatVector::SetNull(vec, row_idx, true);
+		return;
 	}
-}
-/*
-    Get the next RDF row from the buffer.
-    Throws if invoked after EverythingProcessed() returns true.
-*/
-RDFRow SerdBuffer::GetNextRow() {
-	if (rows.empty()) {
-		throw std::runtime_error("Invoked after end of file");
-	}
-	RDFRow r = rows.front();
-	rows.pop();
-	return r;
+	// Zero-copy from Serd buffer to DuckDB String Heap
+	auto str = duckdb::StringVector::AddString(vec, (const char *)node->buf, node->n_bytes);
+	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
 }
 
-void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
-	while (rows.size() < min_rows && !eof) {
+void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
+	_current_chunk = &output;
+	_current_count = 0;
+
+	// 1. Drain overflow buffer first (if any)
+	while (!_overflow_buffer.empty() && _current_count < STANDARD_VECTOR_SIZE) {
+		RDFRow row = _overflow_buffer.front();
+		_overflow_buffer.pop_front();
+		// Manual copy from string to vector (slow path)
+		output.SetValue(0, _current_count, duckdb::Value(row.graph));
+		output.SetValue(1, _current_count, duckdb::Value(row.subject));
+		output.SetValue(2, _current_count, duckdb::Value(row.predicate));
+		output.SetValue(3, _current_count, duckdb::Value(row.object));
+		output.SetValue(4, _current_count, duckdb::Value(row.datatype));
+		output.SetValue(5, _current_count, duckdb::Value(row.lang));
+		_current_count++;
+	}
+
+	// 2. Parse from file directly into Chunk
+	while (_current_count < STANDARD_VECTOR_SIZE && !eof) {
 		SerdStatus st = serd_reader_read_chunk(_reader.get());
 		switch (st) {
 		case SERD_SUCCESS:
+			// Loop continues; Callback increments current_count
 			eof = false;
 			break;
+
 		case SERD_FAILURE:
 			serd_reader_end_stream(_reader.get());
 			if (std::feof(_file.get())) {
 				eof = true;
 			} else {
-				throw std::runtime_error("SERD failure");
+				if (_has_error) {
+					throw duckdb::SyntaxException(_error_message);
+				} else {
+					throw std::runtime_error("SERD failure");
+				}
 			}
 			break;
 		case SERD_ERR_BAD_CURIE:
@@ -126,9 +132,13 @@ void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 		case SERD_ERR_INTERNAL:
 			throw std::runtime_error("SERD Error: " + SerdStatusToString(st));
 		case SERD_ERR_BAD_SYNTAX:
-			if (_strict_parsing)
-				throw std::runtime_error("SERD bad RDF syntax");
-			else {
+			if (_strict_parsing) {
+				if (_has_error) {
+					throw duckdb::SyntaxException(_error_message);
+				} else {
+					throw duckdb::SyntaxException("SERD bad RDF syntax");
+				}
+			} else {
 				cerr << "Skipping in parse next batch";
 				if (serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
 					throw std::runtime_error("SERD failure while skipping after syntax error");
@@ -138,6 +148,9 @@ void SerdBuffer::ParseNextBatch(uint64_t min_rows) {
 			break;
 		}
 	}
+
+	output.SetCardinality(_current_count);
+	_current_chunk = nullptr; // Clear pointer for safety
 }
 
 auto safe_str = [](const SerdNode *node) -> std::string {
@@ -179,14 +192,30 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
                                          const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
                                          const SerdNode *object_datatype, const SerdNode *object_lang) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
-	RDFRow row;
-	row.graph = safe_str(graph);
-	row.subject = safe_str(subject);
-	row.predicate = safe_str(predicate);
-	row.object = safe_str(object);
-	row.datatype = safe_str(object_datatype);
-	row.lang = safe_str(object_lang);
-	self->rows.push(std::move(row));
+
+	// Safety check: If chunk is full, push to overflow and return
+	if (self->_current_count >= STANDARD_VECTOR_SIZE) {
+		RDFRow row;
+		row.subject = safe_str(subject);
+		row.predicate = safe_str(predicate);
+		row.object = safe_str(object);
+		row.graph = safe_str(graph);
+		row.datatype = safe_str(object_datatype);
+		row.lang = safe_str(object_lang);
+		self->_overflow_buffer.push_back(std::move(row));
+		return SERD_SUCCESS;
+	}
+
+	// Fast Path: Direct Write to DuckDB Vectors
+	// Note: DataChunk columns map to: 0:graph, 1:subject, 2:predicate, 3:object, ...
+	self->WriteToVector(self->_current_chunk->data[0], self->_current_count, graph);
+	self->WriteToVector(self->_current_chunk->data[1], self->_current_count, subject);
+	self->WriteToVector(self->_current_chunk->data[2], self->_current_count, predicate);
+	self->WriteToVector(self->_current_chunk->data[3], self->_current_count, object);
+	self->WriteToVector(self->_current_chunk->data[4], self->_current_count, object_datatype);
+	self->WriteToVector(self->_current_chunk->data[5], self->_current_count, object_lang);
+
+	self->_current_count++;
 	return SERD_SUCCESS;
 }
 
@@ -194,10 +223,13 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 // it doesn't seem like calling it actually helps.
 SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
-	if (self->_strict_parsing)
-		throw std::runtime_error("SERD parsing error '" + SerdStatusToString(error->status) + "', at line " +
-		                         std::to_string(error->line));
-	return SERD_SUCCESS;
+	if (self->_strict_parsing) {
+		self->_has_error = true;
+		self->_error_message =
+		    "SERD parsing error '" + SerdStatusToString(error->status) + "', at line " + std::to_string(error->line);
+		return SERD_FAILURE;
+	} else
+		return SERD_SUCCESS;
 }
 SerdStatus SerdBuffer::BaseCallback(void *, const SerdNode *) {
 	return SERD_SUCCESS;

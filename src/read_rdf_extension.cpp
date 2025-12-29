@@ -64,30 +64,8 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
 	auto &state = (RDFReaderLocalState &)*input.local_state;
-	auto &parser = *state.sb;
-
-	idx_t count = 0;
-	const idx_t target = STANDARD_VECTOR_SIZE; // fill full chunk for throughput
-
-	while (count < target) {
-		try {
-			if (parser.EverythingProcessed()) {
-				break; // EOF and no rows available
-			}
-			RDFRow row = parser.GetNextRow();
-			output.SetValue(0, count, Value(row.graph));
-			output.SetValue(1, count, Value(row.subject));
-			output.SetValue(2, count, Value(row.predicate));
-			output.SetValue(3, count, Value(row.object));
-			output.SetValue(4, count, Value(row.datatype));
-			output.SetValue(5, count, Value(row.lang));
-		} catch (const std::runtime_error &error) {
-			string s = error.what();
-			throw SyntaxException(s);
-		}
-		count++;
-	}
-	output.SetCardinality(count);
+	// Delegate the filling entirely to the buffer
+	state.sb->PopulateChunk(output);
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
