@@ -58,12 +58,12 @@ SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, con
 }
 
 SerdBuffer::~SerdBuffer() {
-	if(_reader.get())
+	if (_reader.get())
 		serd_reader_end_stream(_reader.get());
 	serd_reader_free(_reader.release());
-	if(_env.get())
+	if (_env.get())
 		serd_env_free(_env.release());
-	if(_file.get())
+	if (_file.get())
 		std::fclose(_file.release());
 }
 
