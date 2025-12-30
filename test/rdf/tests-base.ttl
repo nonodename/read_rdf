@@ -1,0 +1,25 @@
+@base <http://example.org/> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <http://example.org/book/> .
+@prefix person: <http://example.org/person/> .
+
+<person/JohnDoe>
+	a foaf:Person ;
+	foaf:name "John Doe" ;
+	foaf:age "30"^^xsd:integer;
+	foaf:knows _:jane .
+
+_:jane
+	a <http://xmlns.com/foaf/0.1/Person> ;
+	<http://xmlns.com/foaf/0.1/name> "Jane Smith"@en .
+
+ex:123
+	dc:title "The Great Book" ;
+    df:title "Bad title"@en;
+    <authoredBy> person:JohnDoe ;
+	<http://purl.org/dc/elements/1.1/creator> <person/JohnDoe> .
+
+<http://unicode.org/duck>
+	<http://example.org/hasEmoji> "🦆" .

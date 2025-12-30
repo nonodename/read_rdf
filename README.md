@@ -60,7 +60,13 @@ D select subject, predicate from read_rdf('test/rdf/tests.nt');
 ```
 ### Optional Parameters
 
-One optional parameter is currently supported: `strict_parsing`. This defaults to true and exposes the underlying strict parsing feature of the serd RDF parsing library. When false it permits malformed URIs. To disable strict parsing, pass `strict_parsing = false`.
+#### Strict Parsing
+
+The optional parameter `strict_parsing`, defaults to true and exposes the underlying strict parsing feature of the serd RDF parsing library. When false it permits malformed URIs. To disable strict parsing, pass `strict_parsing = false`.
+
+#### Prefix Expansion
+
+The optional parameter `prefix_expansion` defaults to false and exposes the underlying serd `serd_env_expand_node` function to expand [CURIE](https://en.wikipedia.org/wiki/CURIE) form URIs to fully defined URIs. This is applied to all columns and is ignored when parsing ntriples and nquads.
 
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
@@ -114,6 +120,5 @@ If you'd like to see this listed as a community extension, please file an issue 
 ## Future enhancements
 
 Potential future enhancements are 
-* enable/disable prefix expansion
 * support file globbing (e.g. a directory of RDF files)
 * potentially support RDF XML using [libxml2](https://gitlab.gnome.org/GNOME/libxml2) SAX parsing
