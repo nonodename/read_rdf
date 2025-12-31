@@ -1,0 +1,99 @@
+# name: test/sql/prefix_expansion.test
+# description: test prefix_expansion in read_rdf extension
+# group: [sql]
+
+require read_rdf
+
+## Ntriples and Nquads should be unaffected
+
+# Verify John Doe's name prefix_expansion off on ntriples
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nt',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Verify John Doe's name prefix_expansion on (shouldn't matter on ntriples)
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nt',prefix_expansion = true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Verify John Doe's name prefix_expansion off on nquads
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nq',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Verify John Doe's name prefix_expansion on (shouldn't matter on nquads)
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nq',prefix_expansion = true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+## Trig and turtle
+
+# Verify John Doe's name prefix_expansion off on trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='foaf:name';
+----
+John Doe
+
+# Verify 0 rows for name prefix_expansion on for trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='foaf:name';
+----
+
+# Verify 0 rows for name prefix_expansion on for trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+
+# Verify John Doe's name prefix_expansion off for trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Text data type prefix_expansion
+query T
+select object_datatype from read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true) 
+where subject = 'person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
+----
+http://www.w3.org/2001/XMLSchema#integer
+
+# Text data type prefix_expansion off
+query T
+select object_datatype from read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+where subject = 'person/JohnDoe' and predicate = 'foaf:age';
+----
+xsd:integer
+
+# Text data type prefix_expansion trig
+query T
+select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansion = true) 
+where subject = 'person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
+----
+http://www.w3.org/2001/XMLSchema#integer
+
+# Text data type prefix_expansion trig off
+query T
+select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansion = false)
+where subject = 'person/JohnDoe' and predicate = 'foaf:age';
+----
+xsd:integer

@@ -25,7 +25,8 @@ struct RDFRow {
 */
 class SerdBuffer {
 public:
-	SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing = true);
+	SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing = true,
+	           const bool expand_prefixes = false);
 
 	~SerdBuffer();
 
@@ -35,7 +36,7 @@ public:
 private:
 	// Helper to write to vector
 	void WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node);
-
+	string SafeString(const SerdNode *node);
 	static string SerdStatusToString(SerdStatus status);
 	static SerdStatus StatementCallback(void *user_data, SerdStatementFlags /*flags*/, const SerdNode *graph,
 	                                    const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
@@ -59,6 +60,7 @@ private:
 	bool _has_error = false;
 	std::string _error_message;
 	bool _strict_parsing = true;
+	bool _expand_prefixes = false;
 	uint64_t target_rows;
 };
 

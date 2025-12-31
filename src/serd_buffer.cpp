@@ -28,7 +28,8 @@ static SerdSyntax SyntaxFromPath(const std::string &path) {
 /*
     SerdBuffer constructor. Using managed pointers for the SERD calls
 */
-SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing)
+SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing,
+                       const bool expand_prefixes)
     : _file(nullptr, &fclose), _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free) {
 	file_path = path;
 	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows
@@ -48,6 +49,12 @@ SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, con
 	_env.reset(t_env);
 	_strict_parsing = strict_parsing;
 	SerdSyntax syntax = SyntaxFromPath(path);
+	if (syntax != SERD_NQUADS && syntax != SERD_NTRIPLES) {
+		_expand_prefixes = expand_prefixes;
+	} else { // Prefixes don't make sense in triple/quad formats
+		_expand_prefixes = false;
+	}
+
 	SerdReader *t_reader =
 	    serd_reader_new(syntax, this, nullptr, &BaseCallback, &PrefixCallback, &StatementCallback, nullptr);
 	if (!t_reader) {
@@ -83,6 +90,16 @@ void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNod
 		return;
 	}
 	// Zero-copy from Serd buffer to DuckDB String Heap
+	if (_expand_prefixes && node->type == SERD_CURIE) {
+		SerdNode expanded = serd_env_expand_node(_env.get(), node);
+		if (expanded.buf) {
+			auto str = duckdb::StringVector::AddString(vec, (const char *)expanded.buf, expanded.n_bytes);
+			duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
+			serd_node_free(&expanded);
+			return;
+		}
+		// If expansion failed, fall through to adding the original CURIE
+	}
 	auto str = duckdb::StringVector::AddString(vec, (const char *)node->buf, node->n_bytes);
 	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
 }
@@ -139,7 +156,6 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 					throw duckdb::SyntaxException("SERD bad RDF syntax");
 				}
 			} else {
-				cerr << "Skipping in parse next batch";
 				if (serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
 					throw std::runtime_error("SERD failure while skipping after syntax error");
 			}
@@ -153,11 +169,23 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	_current_chunk = nullptr; // Clear pointer for safety
 }
 
-auto safe_str = [](const SerdNode *node) -> std::string {
+string SerdBuffer::SafeString(const SerdNode *node) {
 	if (!node || !node->buf || node->n_bytes == 0)
 		return {};
-	return std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
-};
+	std::string retVal;
+	if (_expand_prefixes && node->type == SERD_CURIE) {
+		SerdNode expanded = serd_env_expand_node(_env.get(), node);
+		if (expanded.buf) {
+			retVal = std::string(reinterpret_cast<const char *>(expanded.buf), expanded.n_bytes);
+			serd_node_free(&expanded);
+		} else {
+			retVal = std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
+		}
+	} else {
+		retVal = std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
+	}
+	return retVal;
+}
 
 string SerdBuffer::SerdStatusToString(SerdStatus status) {
 	switch (status) {
@@ -196,12 +224,12 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 	// Safety check: If chunk is full, push to overflow and return
 	if (self->_current_count >= STANDARD_VECTOR_SIZE) {
 		RDFRow row;
-		row.subject = safe_str(subject);
-		row.predicate = safe_str(predicate);
-		row.object = safe_str(object);
-		row.graph = safe_str(graph);
-		row.datatype = safe_str(object_datatype);
-		row.lang = safe_str(object_lang);
+		row.subject = self->SafeString(subject);
+		row.predicate = self->SafeString(predicate);
+		row.object = self->SafeString(object);
+		row.graph = self->SafeString(graph);
+		row.datatype = self->SafeString(object_datatype);
+		row.lang = self->SafeString(object_lang);
 		self->_overflow_buffer.push_back(std::move(row));
 		return SERD_SUCCESS;
 	}
@@ -231,9 +259,18 @@ SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	} else
 		return SERD_SUCCESS;
 }
-SerdStatus SerdBuffer::BaseCallback(void *, const SerdNode *) {
+
+SerdStatus SerdBuffer::BaseCallback(void *user_data, const SerdNode *uri) {
+	auto *self = static_cast<SerdBuffer *>(user_data);
+	serd_env_set_base_uri(self->_env.get(), uri);
 	return SERD_SUCCESS;
 }
-SerdStatus SerdBuffer::PrefixCallback(void *, const SerdNode *, const SerdNode *) {
+
+SerdStatus SerdBuffer::PrefixCallback(void *user_data, const SerdNode *name, const SerdNode *uri) {
+	auto *self = static_cast<SerdBuffer *>(user_data);
+	if (self->_expand_prefixes) {
+		// Update SerdEnv with new prefix mapping
+		serd_env_set_prefix(self->_env.get(), name, uri);
+	}
 	return SERD_SUCCESS;
 }

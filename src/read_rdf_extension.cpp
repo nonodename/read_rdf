@@ -11,6 +11,9 @@
 
 using namespace std;
 
+#define STRICT_PARSING   "strict_parsing"
+#define PREFIX_EXPANSION "prefix_expansion"
+
 namespace duckdb {
 
 struct RDFReaderBindData : public TableFunctionData {
@@ -18,6 +21,7 @@ struct RDFReaderBindData : public TableFunctionData {
 	string file_type;
 	string baseURI;
 	bool strict_parsing = true;
+	bool expand_prefixes = false;
 };
 
 struct RDFReaderLocalState : public LocalTableFunctionState {
@@ -33,11 +37,17 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
 	// Permit caller to expand prefixed values
 	result->file_path = input.inputs[0].GetValue<string>();
-	auto strict_parsing_param = input.named_parameters.find("strict_parsing");
+	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
 	if (strict_parsing_param != input.named_parameters.end()) {
 		result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
 	} else {
 		result->strict_parsing = true;
+	}
+	auto prefix_expansion_param = input.named_parameters.find(PREFIX_EXPANSION);
+	if (prefix_expansion_param != input.named_parameters.end()) {
+		result->expand_prefixes = prefix_expansion_param->second.GetValue<bool>();
+	} else {
+		result->expand_prefixes = false;
 	}
 	auto &fs = FileSystem::GetFileSystem(context);
 	string expanded = fs.ExpandPath(result->file_path);
@@ -51,7 +61,7 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
                                                          GlobalTableFunctionState *global_state) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
-	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing);
+	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes);
 	try {
 		_sb->StartParse();
 	} catch (const std::runtime_error &re) {
@@ -71,7 +81,8 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
 	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
-	tf.named_parameters["strict_parsing"] = LogicalType::BOOLEAN;
+	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
+	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	loader.RegisterFunction(tf);
 }
 
