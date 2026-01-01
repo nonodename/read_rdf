@@ -28,14 +28,14 @@ static SerdSyntax SyntaxFromPath(const std::string &path) {
 /*
     SerdBuffer constructor. Using managed pointers for the SERD calls
 */
-SerdBuffer::SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing,
+SerdBuffer::SerdBuffer( std::string path,  std::string base_uri, const bool strict_parsing,
                        const bool expand_prefixes)
-    : _file(nullptr, &fclose), _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free) {
-	file_path = path;
+    : _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free),
+      ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes) {
 	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows
-	FILE *_f = std::fopen(file_path.c_str(), "rb");
+	FILE *_f = std::fopen(_file_path.c_str(), "rb");
 	if (!_f) {
-		throw std::runtime_error("Could not open RDF file: " + file_path);
+		throw std::runtime_error("Could not open RDF file: " + _file_path);
 	}
 	_file.reset(_f);
 	SerdNode base = SERD_NODE_NULL;
@@ -80,7 +80,7 @@ SerdBuffer::~SerdBuffer() {
 */
 void SerdBuffer::StartParse() {
 	const char *fp;
-	fp = file_path.c_str();
+	fp = _file_path.c_str();
 	serd_reader_start_stream(_reader.get(), _file.get(), (uint8_t *)fp, false);
 }
 
@@ -123,18 +123,18 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	}
 
 	// 2. Parse from file directly into Chunk
-	while (_current_count < STANDARD_VECTOR_SIZE && !eof) {
+	while (_current_count < STANDARD_VECTOR_SIZE && !_eof) {
 		SerdStatus st = serd_reader_read_chunk(_reader.get());
 		switch (st) {
 		case SERD_SUCCESS:
 			// Loop continues; Callback increments current_count
-			eof = false;
+			_eof = false;
 			break;
 
 		case SERD_FAILURE:
 			serd_reader_end_stream(_reader.get());
 			if (std::feof(_file.get())) {
-				eof = true;
+				_eof = true;
 			} else {
 				if (_has_error) {
 					throw duckdb::SyntaxException(_error_message);
