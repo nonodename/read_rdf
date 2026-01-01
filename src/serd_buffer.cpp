@@ -28,8 +28,7 @@ static SerdSyntax SyntaxFromPath(const std::string &path) {
 /*
     SerdBuffer constructor. Using managed pointers for the SERD calls
 */
-SerdBuffer::SerdBuffer( std::string path,  std::string base_uri, const bool strict_parsing,
-                       const bool expand_prefixes)
+SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
     : _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free),
       ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes) {
 	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows

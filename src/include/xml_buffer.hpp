@@ -3,11 +3,12 @@
 
 #include "I_triples_buffer.hpp"
 #include "duckdb.hpp"
+#include <string_view>
 #include "rdf_xml_parser.hpp"
 
 class XMLBuffer : public ITriplesBuffer {
 public:
-	XMLBuffer( std::string path,  std::string base_uri, const bool strict_parsing = true,
+	XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing = true,
 	          const bool expand_prefixes = false);
 
 	~XMLBuffer();

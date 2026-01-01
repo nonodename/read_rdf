@@ -4,8 +4,7 @@
 
 #define PARSING_CHUNK_SIZE 4096
 
-XMLBuffer::XMLBuffer( std::string path,  std::string base_uri, const bool strict_parsing,
-                     const bool expand_prefixes)
+XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
     : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
       _parser([this](const RdfStatement &s) { this->statementCallback(s); },
               [this](std::string_view prefix, std::string_view uri) { this->namespaceCallback(prefix, uri); },
