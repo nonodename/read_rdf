@@ -4,13 +4,13 @@ This repository is based on https://github.com/duckdb/extension-template, check 
 
 ---
 
-This extension, ReadRdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/).
+This extension, ReadRdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used the file extension is `.rdf` or `.xml`.
 
 Six columns are returned for RDF. Some will be null if the associated values aren't present. Graph (if present), Subject, predicate, object, language_tag (if present), datatype (if present).
 
 ## Building
 ### Managing dependencies
-This project doesn't currently use VCPKG so all discussion of it removed. You don't need  that for build 😀
+This project uses VCPKG for libxml2. See upstream project for build instructions for that.
 
 ### Build steps
 To build the extension, first clone this repo. Then in the repo base locally run:
@@ -121,4 +121,4 @@ If you'd like to see this listed as a community extension, please file an issue 
 
 Potential future enhancements are 
 * support file globbing (e.g. a directory of RDF files)
-* potentially support RDF XML using [libxml2](https://gitlab.gnome.org/GNOME/libxml2) SAX parsing
+* override file extension mapping
