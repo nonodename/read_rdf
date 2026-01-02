@@ -3,11 +3,13 @@
 # group: [sql]
 
 # these tests are invoked by doing a set union and set intersection of the 
-# example files from the W3C spec. If the count is the same as one file then 
+# example files from the W3C https://www.w3.org/TR/rdf-syntax-grammar/.
+# If the count is the same as one file then 
 # we parsed the files exactly as the spec wants.
 
 # Require statement will ensure this test is run with this extension loaded
 require read_rdf
+
 
 
 # Example 7, UNION
@@ -29,3 +31,263 @@ select subject, predicate, object, object_datatype, object_lang
     from read_rdf('test/xmlrdf/example07.rdf'))
 ----
 4
+
+# Example 8, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example08.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example08.rdf'))
+----
+6
+
+# Example 8, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example08.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example08.rdf'))
+----
+6
+
+# Example 9, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example09.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example09.rdf'))
+----
+6
+
+# Example 9, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example09.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example09.rdf'))
+----
+6
+
+# Example 10, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example10.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example10.rdf'))
+----
+1
+
+# Example 10, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example10.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example10.rdf'))
+----
+1
+
+# Example 11, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example11.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example11.rdf'))
+----
+4
+
+# Example 11, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example11.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example11.rdf'))
+----
+4
+
+# Example 12, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example12.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example12.rdf'))
+----
+4
+
+# Example 12, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example12.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example12.rdf'))
+----
+4
+
+# Example 13, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example13.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example13.rdf'))
+----
+3
+
+# Example 13, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example13.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example13.rdf'))
+----
+3
+
+# Example 14, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example14.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example14.rdf'))
+----
+2
+
+# Example 14, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example14.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example14.rdf'))
+----
+2
+
+# Example 15, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example15.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example15.rdf'))
+----
+2
+
+# Example 15, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example15.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example15.rdf'))
+----
+2
+
+# Example 16, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example16.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example16.rdf'))
+----
+4
+
+# Example 16, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example16.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example16.rdf'))
+----
+4
+
+# Example 17, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example17.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example17.rdf'))
+----
+4
+
+# Example 17, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example17.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example17.rdf'))
+----
+4
+
+# Example 18, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.rdf'))
+----
+4
+
+# Example 18, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.rdf'))
+----
+4
+
+# Example 19, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example19.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example19.rdf'))
+----
+7
+
+# Example 19, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example19.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example19.rdf'))
+----
+7
+
+# Example 20, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example20.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example20.rdf'))
+----
+5
+
+# Example 20, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example20.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example20.rdf'))
+----
+5
