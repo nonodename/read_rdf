@@ -28,10 +28,12 @@ jobs:
       duckdb_version: v1.4.3
       ci_tools_version: v1.4.3
       extension_name: read_rdf
+      exclude_archs: 'linux_amd64;linux_amd64_gcc4;linux_arm64;osx_amd64;osx_arm64;wasm_mvp;wasm_eh;wasm_threads'
 
   code-quality-check:
     name: Code Quality Check
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.4.3
+    if: false  # Disabled temporarily for Windows-only testing
     with:
       duckdb_version: v1.4.3
       ci_tools_version: v1.4.3
