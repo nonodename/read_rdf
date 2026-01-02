@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <functional>
-#include <stack>
+#include <vector>
 #include <map>
 #include <cstring>
 #include <libxml/parser.h>
@@ -53,16 +53,17 @@ private:
 		std::string datatype;
 		std::string reify_id; // For rdf:ID on properties (Reification)
 		std::string text_buf;
+		std::string baseURI;  // Current base URI
 		bool has_obj_nodes = false;
 		bool is_xml_literal = false; // For rdf:parseType="Literal"
 		ElementFrame(ElementType t, std::string u, std::string l, std::string d, std::string r, std::string tb,
-		             bool obj, bool xml)
-		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), has_obj_nodes(obj),
+		             std::string bu,bool obj, bool xml)
+		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj),
 		      is_xml_literal(xml) {
 		}
 	};
 
-	std::stack<ElementFrame> stack;
+	std::vector<ElementFrame> _stack;
 	const std::string RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string XML_NS = "http://www.w3.org/XML/1998/namespace";
 
@@ -70,6 +71,7 @@ private:
 
 	std::string generateBNode();
 
+	std::string currentBaseURI();
 	bool isReservedAttr(const std::string &uri);
 	void setupSAX();
 
