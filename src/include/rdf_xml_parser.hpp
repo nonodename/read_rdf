@@ -53,11 +53,12 @@ private:
 		std::string datatype;
 		std::string reify_id; // For rdf:ID on properties (Reification)
 		std::string text_buf;
-		std::string baseURI;  // Current base URI
+		std::string baseURI; // Current base URI
 		bool has_obj_nodes = false;
 		bool is_xml_literal = false; // For rdf:parseType="Literal"
+		int literal_depth = 0;       // For tracking nested XML in XMLLiteral
 		ElementFrame(ElementType t, std::string u, std::string l, std::string d, std::string r, std::string tb,
-		             std::string bu,bool obj, bool xml)
+		             std::string bu, bool obj, bool xml)
 		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj),
 		      is_xml_literal(xml) {
 		}
@@ -70,7 +71,10 @@ private:
 	xmlSAXHandler saxHandler;
 
 	std::string generateBNode();
-
+	static std::string xmlEscape(const std::string& data);
+	static std::string xmlEscape(const char * data, int len);
+	std::string literalXML(const xmlChar *localname, const xmlChar *prefix, const xmlChar **namespaces,
+	                       int nb_namespaces, const xmlChar **attributes, int nb_attributes);
 	std::string currentBaseURI();
 	bool isReservedAttr(const std::string &uri);
 	void setupSAX();
