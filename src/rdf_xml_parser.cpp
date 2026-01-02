@@ -4,6 +4,7 @@ RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, Error
     : on_statement(s_cb), on_namespace(n_cb), on_error(e_cb), base_uri(base), bnode_count(0),
       _ctxt(nullptr, &xmlFreeParserCtxt) {
 	setupSAX();
+
 	xmlParserCtxtPtr ctxt = xmlCreatePushParserCtxt(&saxHandler, this, nullptr, 0, nullptr);
 	_ctxt.reset(ctxt);
 }
@@ -16,6 +17,9 @@ void RdfXmlParser::parseChunk(const char *chunk, int size, bool is_final) {
 	if (xmlParseChunk(_ctxt.get(), chunk, size, is_final) != 0) {
 		on_error("XML parsing error");
 	}
+}
+void RdfXmlParser::addNameSpace(const std::string &prefix, const std::string &uri) {
+	_nameSpaces[prefix] = uri;
 }
 RdfXmlParser::~RdfXmlParser() {
 }

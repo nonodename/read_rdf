@@ -83,6 +83,7 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 }
 
 void XMLBuffer::namespaceCallback(const std::string &prefix, const std::string &uri) {
+    _parser.addNameSpace(prefix, uri);
 	std::cout << "[NS] " << (prefix.empty() ? "(default)" : prefix) << " => " << uri << "\n";
 }
 void XMLBuffer::errorCallback(const std::string &msg) {

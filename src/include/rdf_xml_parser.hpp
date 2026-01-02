@@ -5,6 +5,7 @@
 #include <string>
 #include <functional>
 #include <stack>
+#include <map>
 #include <cstring>
 #include <libxml/parser.h>
 #include <libxml/SAX2.h>
@@ -29,7 +30,7 @@ public:
 
 	void parseChunk(const char *chunk, int size, bool is_final);
 	~RdfXmlParser();
-
+	void addNameSpace(const std::string &prefix, const std::string &uri);
 private:
 	StatementCallback on_statement;
 	NamespaceCallback on_namespace;
@@ -37,7 +38,7 @@ private:
 	std::string base_uri;
 	unsigned long bnode_count;
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
-
+	std::map<std::string, std::string> _nameSpaces;
 	enum class ElementType { NODE, PROPERTY, ROOT };
 
 	struct ElementFrame {

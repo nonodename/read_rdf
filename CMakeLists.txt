@@ -7,6 +7,7 @@ set(TARGET_NAME read_rdf)
 set(SERD_NAME serd_lib)
 
 find_package(LibXml2 REQUIRED)
+find_package(Iconv REQUIRED)
 
 project(${TARGET_NAME} LANGUAGES C CXX)
 
@@ -61,23 +62,25 @@ target_include_directories(${EXTENSION_NAME}
         src/include
         serd/include
     ${LIBXML2_INCLUDE_DIR}
+    ${ICONV_INCLUDE_DIR}
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         serd/include
     ${LIBXML2_INCLUDE_DIR}
+    ${ICONV_INCLUDE_DIR}
 )
 
 # Link SERD internally (no leakage, no exports)
 target_link_libraries(${EXTENSION_NAME}
         ${SERD_NAME}
-        ${LIBXML2_LIBRARIES}
+        LibXml2::LibXml2
 )
 
 target_link_libraries(${LOADABLE_EXTENSION_NAME}
         ${SERD_NAME}
-        ${LIBXML2_LIBRARIES}
+        LibXml2::LibXml2
 )
 
 # Windows: force static SERD behavior (avoid dllimport)
