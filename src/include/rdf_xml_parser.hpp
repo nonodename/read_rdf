@@ -8,6 +8,7 @@
 #include <cstring>
 #include <libxml/parser.h>
 #include <libxml/SAX2.h>
+#include <memory>
 
 struct RdfStatement {
 	std::string subject;
@@ -34,7 +35,7 @@ private:
 	NamespaceCallback on_namespace;
 	ErrorCallback on_error;
 	std::string base_uri;
-	uint64_t bnode_count;
+	unsigned long bnode_count;
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
 
 	enum class ElementType { NODE, PROPERTY, ROOT };
