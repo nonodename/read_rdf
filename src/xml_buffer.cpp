@@ -7,7 +7,7 @@
 XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
     : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
       _parser([this](const RdfStatement &s) { this->statementCallback(s); },
-              [this](std::string_view prefix, std::string_view uri) { this->namespaceCallback(prefix, uri); },
+              [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
               [this](const std::string &msg) { this->errorCallback(msg); }, base_uri) {
 
 	std::cerr << "Opening XML file_path: " << _file_path << std::endl;
@@ -82,7 +82,7 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 	_current_count++;
 }
 
-void XMLBuffer::namespaceCallback(std::string_view prefix, std::string_view uri) {
+void XMLBuffer::namespaceCallback(const std::string &prefix, const std::string &uri) {
 	std::cout << "[NS] " << (prefix.empty() ? "(default)" : prefix) << " => " << uri << "\n";
 }
 void XMLBuffer::errorCallback(const std::string &msg) {

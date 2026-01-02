@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <string>
-#include <string_view>
 #include <functional>
 #include <stack>
 #include <cstring>
@@ -21,7 +20,7 @@ struct RdfStatement {
 class RdfXmlParser {
 public:
 	using StatementCallback = std::function<void(const RdfStatement &)>;
-	using NamespaceCallback = std::function<void(std::string_view prefix, std::string_view uri)>;
+	using NamespaceCallback = std::function<void(const std::string &prefix, const std::string &uri)>;
 	using ErrorCallback = std::function<void(const std::string &message)>;
 
 	RdfXmlParser(StatementCallback s_cb = nullptr, NamespaceCallback n_cb = nullptr, ErrorCallback e_cb = nullptr,

@@ -3,7 +3,6 @@
 
 #include "I_triples_buffer.hpp"
 #include "duckdb.hpp"
-#include <string_view>
 #include "rdf_xml_parser.hpp"
 
 class XMLBuffer : public ITriplesBuffer {
@@ -19,7 +18,7 @@ public:
 private:
 	void writeToVector(duckdb::Vector &vec, idx_t row_idx, const std::string &field);
 	void statementCallback(const RdfStatement &stmt);
-	void namespaceCallback(std::string_view prefix, std::string_view uri);
+	void namespaceCallback(const std::string &prefix, const std::string &uri);
 	void errorCallback(const std::string &msg);
 	RdfXmlParser _parser;
 };

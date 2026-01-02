@@ -46,8 +46,14 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
                                   const xmlChar **attributes) {
 	auto *self = static_cast<RdfXmlParser *>(ctx);
 	for (int i = 0; i < nb_namespaces; ++i) {
-		self->on_namespace(namespaces[i * 2] ? (const char *)namespaces[i * 2] : "",
-		                   (const char *)namespaces[i * 2 + 1]);
+		std::string prefix_str;
+		if (namespaces[i * 2]) {
+			prefix_str = std::string((const char *)namespaces[i * 2]);
+		} else {
+			prefix_str = "";
+		}
+		std::string uri_str = (const char *)namespaces[i * 2 + 1];
+		self->on_namespace(prefix_str, uri_str);
 	}
 
 	std::string current_uri = self->expandUri(URI, localname);
