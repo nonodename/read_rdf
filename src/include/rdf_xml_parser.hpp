@@ -78,7 +78,7 @@ private:
 	std::string currentBaseURI();
 	bool isReservedAttr(const std::string &uri);
 	void setupSAX();
-
+	void processAttributes(int nb_attributes, const xmlChar **attributes,const std::string &subject, const std::string &lang);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);

@@ -119,6 +119,16 @@ std::string RdfXmlParser::literalXML(const xmlChar *localname, const xmlChar *pr
 	return oss.str();
 }
 
+void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject, const std::string &lang) {
+	for (int i = 0; i < nb_attributes; ++i) {
+		auto attr_uri = expandUri(attributes[i * 5 + 2], attributes[i * 5]);
+		if (!isReservedAttr(attr_uri)) {
+			std::string val((const char *)attributes[i * 5 + 3],
+							(const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
+			emit(subject, attr_uri, val, "", lang);
+		}
+	}
+}
 void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
                                   int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
                                   const xmlChar **attributes) {
@@ -196,15 +206,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		}
 		if (current_uri != self->RDF_NS + "Description")
 			self->emit(subject, self->RDF_NS + "type", current_uri, "", "");
-
-		for (int i = 0; i < nb_attributes; ++i) {
-			std::string attr_uri = self->expandUri(attributes[i * 5 + 2], attributes[i * 5]);
-			if (!self->isReservedAttr(attr_uri)) {
-				std::string val((const char *)attributes[i * 5 + 3],
-				                (const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
-				self->emit(subject, attr_uri, val, "", lang);
-			}
-		}
+		self->processAttributes(nb_attributes, attributes, subject, lang);
 		self->_stack.push_back({ElementType::NODE, subject, lang, "", "", "", base, false, false});
 	} else { // PROPERTY
 		std::string reify_uri = rdf_id.empty() ? "" : self->currentBaseURI() + "#" + rdf_id;
@@ -227,16 +229,8 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 			std::string object =
 			    !resource.empty() ? resource : (!nodeID.empty() ? "_:" + nodeID : self->generateBNode());
 			self->emitWithReification(self->_stack.back().uri, current_uri, object, "", "", reify_uri);
-
 			// Emit triples for all property attributes on this object
-			for (int i = 0; i < nb_attributes; ++i) {
-				std::string attr_uri = self->expandUri(attributes[i * 5 + 2], attributes[i * 5]);
-				if (!self->isReservedAttr(attr_uri)) {
-					std::string val((const char *)attributes[i * 5 + 3],
-					                (const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
-					self->emit(object, attr_uri, val, "", lang);
-				}
-			}
+			self->processAttributes(nb_attributes, attributes, object, lang);
 			self->_stack.push_back(
 			    {ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", true, false});
 		} else {
@@ -263,7 +257,7 @@ void RdfXmlParser::onEndElement(void *ctx, const xmlChar *localname, const xmlCh
 		frame.literal_depth--;
 		return;
 	}
-	std::string current_uri = self->expandUri(URI, localname);
+	auto current_uri = self->expandUri(URI, localname);
 	if (current_uri == self->RDF_NS + "RDF") {
 		self->_stack.pop_back();
 		return;
@@ -273,9 +267,9 @@ void RdfXmlParser::onEndElement(void *ctx, const xmlChar *localname, const xmlCh
 	self->_stack.pop_back();
 
 	if (current.type == ElementType::PROPERTY && !current.has_obj_nodes) {
-		std::string text = self->trim(current.text_buf);
-		std::string dt = current.is_xml_literal ? self->RDF_NS + "XMLLiteral" : current.datatype;
-		std::string lit_lang = dt.empty() ? current.lang : "";
+		auto text = self->trim(current.text_buf);
+		auto dt = current.is_xml_literal ? self->RDF_NS + "XMLLiteral" : current.datatype;
+		auto lit_lang = dt.empty() ? current.lang : "";
 		if (!self->_stack.empty()) {
 			self->emitWithReification(self->_stack.back().uri, current.uri, text, dt, lit_lang, current.reify_id);
 		}
