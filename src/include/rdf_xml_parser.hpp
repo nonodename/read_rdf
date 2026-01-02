@@ -71,8 +71,8 @@ private:
 	xmlSAXHandler saxHandler;
 
 	std::string generateBNode();
-	static std::string xmlEscape(const std::string& data);
-	static std::string xmlEscape(const char * data, int len);
+	static std::string xmlEscape(const std::string &data);
+	static std::string xmlEscape(const char *data, int len);
 	std::string literalXML(const xmlChar *localname, const xmlChar *prefix, const xmlChar **namespaces,
 	                       int nb_namespaces, const xmlChar **attributes, int nb_attributes);
 	std::string currentBaseURI();

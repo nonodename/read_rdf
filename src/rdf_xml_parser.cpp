@@ -58,21 +58,33 @@ std::string RdfXmlParser::currentBaseURI() {
 	return result;
 }
 
-std::string RdfXmlParser::xmlEscape(const std::string& data) {
-	return xmlEscape(const_cast<char*>(data.c_str()), static_cast<int>(data.size()));
+std::string RdfXmlParser::xmlEscape(const std::string &data) {
+	return xmlEscape(const_cast<char *>(data.c_str()), static_cast<int>(data.size()));
 }
 
-std::string RdfXmlParser::xmlEscape(const char * data, int len) {
+std::string RdfXmlParser::xmlEscape(const char *data, int len) {
 	std::ostringstream escaped;
 	for (int i = 0; i < len; ++i) {
 		char c = data[i];
 		switch (c) {
-			case '&':  escaped << "&amp;";  break;
-			case '<':  escaped << "&lt;";   break;
-			case '>':  escaped << "&gt;";   break;
-			case '\"': escaped << "&quot;"; break;
-			case '\'': escaped << "&apos;"; break;
-			default:   escaped << c;        break;
+		case '&':
+			escaped << "&amp;";
+			break;
+		case '<':
+			escaped << "&lt;";
+			break;
+		case '>':
+			escaped << "&gt;";
+			break;
+		case '\"':
+			escaped << "&quot;";
+			break;
+		case '\'':
+			escaped << "&apos;";
+			break;
+		default:
+			escaped << c;
+			break;
 		}
 	}
 	return escaped.str();
@@ -289,7 +301,7 @@ void RdfXmlParser::emit(const std::string &s, const std::string &p, const std::s
 void RdfXmlParser::onCharacters(void *ctx, const xmlChar *ch, int len) {
 	auto *self = static_cast<RdfXmlParser *>(ctx);
 	if (!self->_stack.empty() && self->_stack.back().type == ElementType::PROPERTY) {
-		if( self->_stack.back().is_xml_literal ) {
+		if (self->_stack.back().is_xml_literal) {
 			self->_stack.back().text_buf.append(xmlEscape((const char *)ch, len));
 		} else {
 			self->_stack.back().text_buf.append((const char *)ch, len);
