@@ -1,6 +1,6 @@
 {
         "dependencies": [
-                "libxml2"
+                "libxml2", "libiconv"
         ],
         "vcpkg-configuration": {
             "overlay-ports": [

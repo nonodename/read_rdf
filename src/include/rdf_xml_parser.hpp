@@ -31,12 +31,17 @@ public:
 	void parseChunk(const char *chunk, int size, bool is_final);
 	~RdfXmlParser();
 	void addNameSpace(const std::string &prefix, const std::string &uri);
+	void setBlankNodePrefix(const std::string &prefix) {
+		_blank_node_prefix = prefix;
+	}
+
 private:
 	StatementCallback on_statement;
 	NamespaceCallback on_namespace;
 	ErrorCallback on_error;
 	std::string base_uri;
 	unsigned long bnode_count;
+	std::string _blank_node_prefix = "_:b";
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
 	std::map<std::string, std::string> _nameSpaces;
 	enum class ElementType { NODE, PROPERTY, ROOT };

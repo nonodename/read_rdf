@@ -24,7 +24,7 @@ void RdfXmlParser::addNameSpace(const std::string &prefix, const std::string &ur
 RdfXmlParser::~RdfXmlParser() {
 }
 std::string RdfXmlParser::generateBNode() {
-	return "_:b" + std::to_string(++bnode_count);
+	return _blank_node_prefix + std::to_string(++bnode_count);
 }
 
 bool RdfXmlParser::isReservedAttr(const std::string &uri) {
