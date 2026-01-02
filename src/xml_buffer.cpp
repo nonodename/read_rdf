@@ -10,14 +10,11 @@ XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_p
               [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
               [this](const std::string &msg) { this->errorCallback(msg); }, base_uri) {
 
-	std::cerr << "Opening XML file_path: " << _file_path << std::endl;
-	std::cout << "Opening XML file: " << path << std::endl;
-
 	FILE *_f = std::fopen(_file_path.c_str(), "rb");
 	if (!_f) {
 		throw std::runtime_error("Could not open RDF file: " + _file_path);
 	}
-
+	_parser.setBlankNodePrefix("genid");
 	_file.reset(_f);
 }
 XMLBuffer::~XMLBuffer() {
@@ -84,7 +81,7 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 
 void XMLBuffer::namespaceCallback(const std::string &prefix, const std::string &uri) {
 	_parser.addNameSpace(prefix, uri);
-	std::cout << "[NS] " << (prefix.empty() ? "(default)" : prefix) << " => " << uri << "\n";
+	//	std::cout << "[NS] " << (prefix.empty() ? "(default)" : prefix) << " => " << uri << "\n";
 }
 void XMLBuffer::errorCallback(const std::string &msg) {
 	std::cerr << "![ERR] " << msg << std::endl;

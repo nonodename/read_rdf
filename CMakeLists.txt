@@ -62,14 +62,14 @@ target_include_directories(${EXTENSION_NAME}
         src/include
         serd/include
     ${LIBXML2_INCLUDE_DIR}
-    ${ICONV_INCLUDE_DIR}
+    ${Iconv_INCLUDE_DIR}
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         serd/include
     ${LIBXML2_INCLUDE_DIR}
-    ${ICONV_INCLUDE_DIR}
+    ${Iconv_INCLUDE_DIR}
 )
 
 # Link SERD internally (no leakage, no exports)

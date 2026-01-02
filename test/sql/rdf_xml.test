@@ -1,0 +1,31 @@
+# name: test/sql/rdf_xml.test
+# description: test read_rdf rdf/xml parsing
+# group: [sql]
+
+# these tests are invoked by doing a set union and set intersection of the 
+# example files from the W3C spec. If the count is the same as one file then 
+# we parsed the files exactly as the spec wants.
+
+# Require statement will ensure this test is run with this extension loaded
+require read_rdf
+
+
+# Example 7, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example07.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example07.rdf'))
+----
+4
+
+# Example 7, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example07.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example07.rdf'))
+----
+4
