@@ -34,8 +34,8 @@ bool RdfXmlParser::isReservedAttr(const std::string &uri) {
 	if (uri.find(RDF_NS) != 0)
 		return false;
 	std::string local = uri.substr(RDF_NS.length());
-	return (local == "about" || local == "ID" || local == "nodeID" || local == "resource" || local == "datatype" ||
-	        local == "parseType");
+	return (local == ABOUT_ATTR || local == ID_ATTR || local == NODE_ID_ATTR || local == RESOURCE_ATTR || local == DATATYPE_ATTR ||
+	        local == PARSE_TYPE_ATTR);
 }
 
 void RdfXmlParser::setupSAX() {
@@ -156,11 +156,11 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	if (current_uri == self->RDF_NS + "RDF") {
 		ElementFrame ef = {ElementType::ROOT,
 		                   "",
-		                   self->findAttr(nb_attributes, attributes, self->XML_NS, "lang"),
+		                   self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG),
 		                   "",
 		                   "",
 		                   "",
-		                   self->findAttr(nb_attributes, attributes, self->XML_NS, "base"),
+		                   self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG),
 		                   false,
 		                   false};
 		self->_stack.push_back(ef);
@@ -172,16 +172,16 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	                               ? ElementType::NODE
 	                               : ElementType::PROPERTY;
 
-	auto about = self->findAttr(nb_attributes, attributes, self->RDF_NS, "about");
-	auto nodeID = self->findAttr(nb_attributes, attributes, self->RDF_NS, "nodeID");
-	auto rdf_id = self->findAttr(nb_attributes, attributes, self->RDF_NS, "ID");
-	auto resource = self->findAttr(nb_attributes, attributes, self->RDF_NS, "resource");
-	auto datatype = self->findAttr(nb_attributes, attributes, self->RDF_NS, "datatype");
-	auto parseType = self->findAttr(nb_attributes, attributes, self->RDF_NS, "parseType");
-	auto lang = self->findAttr(nb_attributes, attributes, self->XML_NS, "lang");
+	auto about = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->ABOUT_ATTR);
+	auto nodeID = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->NODE_ID_ATTR);
+	auto rdf_id = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->ID_ATTR);
+	auto resource = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->RESOURCE_ATTR);
+	auto datatype = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->DATATYPE_ATTR);
+	auto parseType = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->PARSE_TYPE_ATTR);
+	auto lang = self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG);
 	if (lang.empty() && !self->_stack.empty())
 		lang = self->_stack.back().lang;
-	auto base = self->findAttr(nb_attributes, attributes, self->XML_NS, "base");
+	auto base = self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG);
 	if (base.empty() && !self->_stack.empty())
 		base = self->_stack.back().baseURI;
 	else if (base.empty())

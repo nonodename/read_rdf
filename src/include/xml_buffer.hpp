@@ -16,6 +16,7 @@ public:
 	void StartParse();
 
 private:
+	constexpr static size_t PARSING_CHUNK_SIZE = 4096;
 	void writeToVector(duckdb::Vector &vec, idx_t row_idx, const std::string &field);
 	void statementCallback(const RdfStatement &stmt);
 	void namespaceCallback(const std::string &prefix, const std::string &uri);
