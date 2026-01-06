@@ -2,7 +2,6 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 
-#define PARSING_CHUNK_SIZE 4096
 
 XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
     : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
@@ -81,7 +80,6 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 
 void XMLBuffer::namespaceCallback(const std::string &prefix, const std::string &uri) {
 	_parser.addNameSpace(prefix, uri);
-	//	std::cout << "[NS] " << (prefix.empty() ? "(default)" : prefix) << " => " << uri << "\n";
 }
 void XMLBuffer::errorCallback(const std::string &msg) {
 	std::cerr << "![ERR] " << msg << std::endl;
