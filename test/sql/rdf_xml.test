@@ -81,6 +81,12 @@ execute determine_delta(testFile := 'test/xmlrdf/example15');
 ----
 0
 
+# Example 16
+query T
+execute determine_delta(testFile := 'test/xmlrdf/example16');
+----
+0
+
 # Example 17
 query T
 execute determine_delta(testFile := 'test/xmlrdf/example17');
@@ -96,6 +102,25 @@ execute determine_delta(testFile := 'test/xmlrdf/example20');
 
 ### Failing tests
 
+# Example 18, UNION
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.nt') 
+  union
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.rdf'))
+----
+4
+
+# Example 18, INTERSECT
+query T
+select count(*) from (select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.nt') 
+  intersect
+select subject, predicate, object, object_datatype, object_lang 
+    from read_rdf('test/xmlrdf/example18.rdf'))
+----
+4
 
 ## Blank node not working correctly
 
@@ -119,45 +144,8 @@ select subject, predicate, object, object_datatype, object_lang
 ----
 4
 
-# Example 16, UNION
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example16.nt') 
-  union
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example16.rdf'))
-----
-4
 
-# Example 16, INTERSECT
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example16.nt') 
-  intersect
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example16.rdf'))
-----
-4
 
-# Example 18, UNION
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.nt') 
-  union
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.rdf'))
-----
-4
-
-# Example 18, INTERSECT
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.nt') 
-  intersect
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.rdf'))
-----
-4
 
 # Example 19, UNION
 query T

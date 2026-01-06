@@ -1,4 +1,5 @@
 #include "include/rdf_xml_parser.hpp"
+#include <libxml/uri.h>
 #include <sstream>
 
 RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, ErrorCallback e_cb, std::string base)
@@ -24,6 +25,15 @@ void RdfXmlParser::addNameSpace(const std::string &prefix, const std::string &ur
 }
 RdfXmlParser::~RdfXmlParser() {
 }
+
+bool RdfXmlParser::isAbsolute(const std::string &uri){
+	xmlURI *uri_parsed = xmlParseURI(uri.c_str());
+	bool has_scheme = false;
+    has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
+    xmlFreeURI(uri_parsed);
+    return has_scheme;
+}
+	
 std::string RdfXmlParser::generateBNode() {
 	return _blank_node_prefix + std::to_string(++bnode_count);
 }
@@ -209,7 +219,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		self->processAttributes(nb_attributes, attributes, subject, lang);
 		self->_stack.push_back({ElementType::NODE, subject, lang, "", "", "", base, false, false});
 	} else { // PROPERTY
-		std::string reify_uri = rdf_id.empty() ? "" : self->currentBaseURI() + "#" + rdf_id;
+		auto reify_uri = rdf_id.empty() ? "" : self->currentBaseURI() + "#" + rdf_id;
 
 		// Check for Property Attributes
 		bool has_prop_attrs = false;
@@ -221,12 +231,15 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		}
 
 		if (parseType == "Resource") {
-			std::string bnode = self->generateBNode();
+			auto bnode = self->generateBNode();
 			self->emitWithReification(self->_stack.back().uri, current_uri, bnode, "", "", reify_uri);
 			self->_stack.push_back({ElementType::NODE, bnode, lang, "", "", "", "", false, false});
 		} else if (!resource.empty() || !nodeID.empty() || (has_prop_attrs && parseType.empty())) {
 			// This is an "Empty Property Element"
-			std::string object =
+			if(!resource.empty() && !isAbsolute(resource)){ 
+				resource = self->currentBaseURI() + resource;
+			}
+			auto object =
 			    !resource.empty() ? resource : (!nodeID.empty() ? "_:" + nodeID : self->generateBNode());
 			self->emitWithReification(self->_stack.back().uri, current_uri, object, "", "", reify_uri);
 			// Emit triples for all property attributes on this object
@@ -234,7 +247,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 			self->_stack.push_back(
 			    {ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", true, false});
 		} else {
-			bool is_xml = (parseType == "Literal");
+			auto is_xml = (parseType == "Literal");
 			self->_stack.push_back(
 			    {ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", false, is_xml});
 		}

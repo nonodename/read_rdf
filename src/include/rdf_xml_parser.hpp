@@ -79,6 +79,7 @@ private:
 
 	xmlSAXHandler saxHandler;
 
+	static bool isAbsolute(const std::string &uri);
 	std::string generateBNode();
 	static std::string xmlEscape(const std::string &data);
 	static std::string xmlEscape(const char *data, int len);
