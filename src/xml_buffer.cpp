@@ -38,7 +38,7 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	char buffer[PARSING_CHUNK_SIZE];
 	while (_current_count < STANDARD_VECTOR_SIZE && !_eof) {
 		int res = fread(buffer, 1, PARSING_CHUNK_SIZE, _file.get());
-		_eof = (res < PARSING_CHUNK_SIZE);
+		_eof = feof(_file.get());
 		_parser.parseChunk(buffer, res, _eof);
 	}
 	output.SetCardinality(_current_count);
