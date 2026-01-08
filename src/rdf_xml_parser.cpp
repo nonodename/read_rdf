@@ -12,6 +12,10 @@ RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, Error
 }
 
 void RdfXmlParser::parseChunk(const char *chunk, int size, bool is_final) {
+	if (_at_eof) {	// permit multiple safe calls with is_final true
+		return;
+	}
+	_at_eof = is_final;
 	if (!_ctxt) {
 		on_error("Failed to create XML parser context");
 		return;
@@ -139,6 +143,8 @@ void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attribut
 		}
 	}
 }
+
+// TODO add support for rdf:li elements which resolve to rdf:_1, rdf:_2, etc.
 void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
                                   int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
                                   const xmlChar **attributes) {

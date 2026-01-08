@@ -10,7 +10,15 @@ Six columns are returned for RDF. Some will be null if the associated values are
 
 ## Building
 ### Managing dependencies
-This project uses VCPKG for libxml2. See upstream project for build instructions for that.
+DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the installation instructions or just run the following:
+
+```sh
+cd <your-working-dir-not-the-plugin-repo>
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg && git checkout ce613c41372b23b1f51333815feb3edd87ef8a8b
+sh ./scripts/bootstrap.sh -disableMetrics
+export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
+```
 
 ### Build steps
 To build the extension, first clone this repo. Then in the repo base locally run:

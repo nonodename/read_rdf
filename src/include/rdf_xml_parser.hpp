@@ -27,7 +27,8 @@ public:
 
 	RdfXmlParser(StatementCallback s_cb = nullptr, NamespaceCallback n_cb = nullptr, ErrorCallback e_cb = nullptr,
 	             std::string base = "");
-
+	// must be called with is_final true on the last chunk otherwise libxml may
+	// leak resources
 	void parseChunk(const char *chunk, int size, bool is_final);
 	~RdfXmlParser();
 	void addNameSpace(const std::string &prefix, const std::string &uri);
@@ -50,6 +51,7 @@ private:
 	NamespaceCallback on_namespace;
 	ErrorCallback on_error;
 	std::string base_uri;
+	bool _at_eof = false;
 	unsigned long bnode_count;
 	std::string _blank_node_prefix = "_:b";
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
