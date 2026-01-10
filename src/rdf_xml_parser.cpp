@@ -12,12 +12,12 @@ RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, Error
 }
 
 void RdfXmlParser::parseChunk(const char *chunk, int size, bool is_final) {
-	if (_at_eof) {	// permit multiple safe calls with is_final true
+	if (_at_eof) { // permit multiple safe calls with is_final true
 		return;
 	}
 	_at_eof = is_final;
-	if (!_ctxt) 
-		throw std::runtime_error("Failed to create XML parser context"); 
+	if (!_ctxt)
+		throw std::runtime_error("Failed to create XML parser context");
 	if (xmlParseChunk(_ctxt.get(), chunk, size, is_final) != 0) {
 		on_error("XML parsing error");
 	}
@@ -28,14 +28,14 @@ void RdfXmlParser::addNameSpace(const std::string &prefix, const std::string &ur
 RdfXmlParser::~RdfXmlParser() {
 }
 
-bool RdfXmlParser::isAbsolute(const std::string &uri){
+bool RdfXmlParser::isAbsolute(const std::string &uri) {
 	xmlURI *uri_parsed = xmlParseURI(uri.c_str());
 	bool has_scheme = false;
-    has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
-    xmlFreeURI(uri_parsed);
-    return has_scheme;
+	has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
+	xmlFreeURI(uri_parsed);
+	return has_scheme;
 }
-	
+
 std::string RdfXmlParser::generateBNode() {
 	return _blank_node_prefix + std::to_string(++bnode_count);
 }
@@ -46,8 +46,8 @@ bool RdfXmlParser::isReservedAttr(const std::string &uri) {
 	if (uri.find(RDF_NS) != 0)
 		return false;
 	std::string local = uri.substr(RDF_NS.length());
-	return (local == ABOUT_ATTR || local == ID_ATTR || local == NODE_ID_ATTR || local == RESOURCE_ATTR || local == DATATYPE_ATTR ||
-	        local == PARSE_TYPE_ATTR);
+	return (local == ABOUT_ATTR || local == ID_ATTR || local == NODE_ID_ATTR || local == RESOURCE_ATTR ||
+	        local == DATATYPE_ATTR || local == PARSE_TYPE_ATTR);
 }
 
 void RdfXmlParser::setupSAX() {
@@ -130,12 +130,13 @@ std::string RdfXmlParser::literalXML(const xmlChar *localname, const xmlChar *pr
 	return oss.str();
 }
 
-void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject, const std::string &lang) {
+void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
+                                     const std::string &lang) {
 	for (int i = 0; i < nb_attributes; ++i) {
 		auto attr_uri = expandUri(attributes[i * 5 + 2], attributes[i * 5]);
 		if (!isReservedAttr(attr_uri)) {
 			std::string val((const char *)attributes[i * 5 + 3],
-							(const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
+			                (const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
 			emit(subject, attr_uri, val, "", lang);
 		}
 	}
@@ -146,11 +147,12 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
                                   int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
                                   const xmlChar **attributes) {
 	auto *self = static_cast<RdfXmlParser *>(ctx);
-	
+
 	ElementFrame *parent_frame = self->_stack.empty() ? nullptr : &(self->_stack.back());
 	if (parent_frame && parent_frame->is_xml_literal) {
 		parent_frame->literal_depth++;
-		parent_frame->text_buf += self->literalXML(localname, prefix, namespaces, nb_namespaces, attributes, nb_attributes);
+		parent_frame->text_buf +=
+		    self->literalXML(localname, prefix, namespaces, nb_namespaces, attributes, nb_attributes);
 		return;
 	}
 	for (int i = 0; i < nb_namespaces; ++i) {
@@ -179,7 +181,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		return;
 	}
 
-	ElementType parent_type = parent_frame ? parent_frame->type :ElementType::ROOT;
+	ElementType parent_type = parent_frame ? parent_frame->type : ElementType::ROOT;
 	ElementType current_type = (parent_type == ElementType::PROPERTY || parent_type == ElementType::ROOT)
 	                               ? ElementType::NODE
 	                               : ElementType::PROPERTY;
@@ -192,16 +194,16 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	auto parseType = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->PARSE_TYPE_ATTR);
 	auto lang = self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG);
 	auto base = self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG);
-	
+
 	if (lang.empty() && parent_frame)
 		lang = parent_frame->lang;
-	if (base.empty()){
-		if(parent_frame)
+	if (base.empty()) {
+		if (parent_frame)
 			base = parent_frame->baseURI;
 		else
 			base = self->base_uri;
 	}
-	
+
 	if (current_type == ElementType::NODE) {
 		std::string subject;
 		if (!about.empty())
@@ -241,11 +243,10 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 			self->_stack.push_back({ElementType::NODE, bnode, lang, "", "", "", "", false, false});
 		} else if (!resource.empty() || !nodeID.empty() || (has_prop_attrs && parseType.empty())) {
 			// This is an "Empty Property Element"
-			if(!resource.empty() && !isAbsolute(resource)){ 
+			if (!resource.empty() && !isAbsolute(resource)) {
 				resource = self->currentBaseURI() + resource;
 			}
-			auto object =
-			    !resource.empty() ? resource : (!nodeID.empty() ? "_:" + nodeID : self->generateBNode());
+			auto object = !resource.empty() ? resource : (!nodeID.empty() ? "_:" + nodeID : self->generateBNode());
 			self->emitWithReification(parent_frame->uri, current_uri, object, "", "", reify_uri);
 			// Emit triples for all property attributes on this object
 			self->processAttributes(nb_attributes, attributes, object, lang);

@@ -39,14 +39,14 @@ public:
 private:
 	const std::string RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string XML_NS = "http://www.w3.org/XML/1998/namespace";
-	constexpr static char const* LANG_TAG = "lang";
-	constexpr static char const* BASE_TAG = "base";
-	constexpr static char const* ABOUT_ATTR = "about";
-	constexpr static char const* ID_ATTR= "ID";
-	constexpr static char const* NODE_ID_ATTR = "nodeID";
-	constexpr static char const* RESOURCE_ATTR = "resource";
-	constexpr static char const* DATATYPE_ATTR = "datatype";
-	constexpr static char const* PARSE_TYPE_ATTR = "parseType";
+	constexpr static char const *LANG_TAG = "lang";
+	constexpr static char const *BASE_TAG = "base";
+	constexpr static char const *ABOUT_ATTR = "about";
+	constexpr static char const *ID_ATTR = "ID";
+	constexpr static char const *NODE_ID_ATTR = "nodeID";
+	constexpr static char const *RESOURCE_ATTR = "resource";
+	constexpr static char const *DATATYPE_ATTR = "datatype";
+	constexpr static char const *PARSE_TYPE_ATTR = "parseType";
 	StatementCallback on_statement;
 	NamespaceCallback on_namespace;
 	ErrorCallback on_error;
@@ -78,7 +78,6 @@ private:
 
 	std::vector<ElementFrame> _stack;
 
-
 	xmlSAXHandler saxHandler;
 
 	static bool isAbsolute(const std::string &uri);
@@ -90,7 +89,8 @@ private:
 	std::string currentBaseURI();
 	bool isReservedAttr(const std::string &uri);
 	void setupSAX();
-	void processAttributes(int nb_attributes, const xmlChar **attributes,const std::string &subject, const std::string &lang);
+	void processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
+	                       const std::string &lang);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);

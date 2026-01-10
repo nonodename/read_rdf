@@ -2,7 +2,6 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 
-
 XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
     : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
       _parser([this](const RdfStatement &s) { this->statementCallback(s); },
