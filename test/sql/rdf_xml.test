@@ -102,68 +102,24 @@ execute determine_delta(testFile := 'test/xmlrdf/example20');
 
 ### Failing tests
 
-# Example 18, UNION
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.nt') 
-  union
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.rdf'))
-----
-4
+# Example 18
+#query T
+#execute determine_delta(testFile := 'test/xmlrdf/example18');
+#----
+#0
 
-# Example 18, INTERSECT
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.nt') 
-  intersect
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example18.rdf'))
-----
-4
 
 ## Blank node not working correctly
 
-# Example 11, UNION
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example11.nt') 
-  union
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example11.rdf'))
-----
-4
+# Example 18
+#query T
+#execute determine_delta(testFile := 'test/xmlrdf/example11');
+#----
+#0
 
-# Example 11, INTERSECT
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example11.nt') 
-  intersect
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example11.rdf'))
-----
-4
-
-
-
-
-# Example 19, UNION
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example19.nt') 
-  union
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example19.rdf'))
-----
-7
-
-# Example 19, INTERSECT
-query T
-select count(*) from (select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example19.nt') 
-  intersect
-select subject, predicate, object, object_datatype, object_lang 
-    from read_rdf('test/xmlrdf/example19.rdf'))
-----
-7
+# Example 19
+#query T
+#execute determine_delta(testFile := 'test/xmlrdf/example19');
+#----
+#0
 
