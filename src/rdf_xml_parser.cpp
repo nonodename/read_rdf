@@ -1,6 +1,7 @@
 #include "include/rdf_xml_parser.hpp"
 #include <libxml/uri.h>
 #include <sstream>
+#include <libxml/entities.h>
 
 RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, ErrorCallback e_cb, std::string base)
     : on_statement(s_cb), on_namespace(n_cb), on_error(e_cb), base_uri(base), bnode_count(0),
@@ -71,34 +72,15 @@ std::string RdfXmlParser::currentBaseURI() {
 }
 
 std::string RdfXmlParser::xmlEscape(const std::string &data) {
-	return xmlEscape(const_cast<char *>(data.c_str()), static_cast<int>(data.size()));
+	const xmlChar *input = reinterpret_cast<xmlChar *>(const_cast<char *>(data.c_str()));
+	const xmlChar *escaped = xmlEncodeSpecialChars(nullptr, input);
+	return std::string(reinterpret_cast<const char *>(escaped));
 }
 
 std::string RdfXmlParser::xmlEscape(const char *data, int len) {
-	std::ostringstream escaped;
-	for (int i = 0; i < len; ++i) {
-		switch (data[i]) {
-		case '&':
-			escaped << "&amp;";
-			break;
-		case '<':
-			escaped << "&lt;";
-			break;
-		case '>':
-			escaped << "&gt;";
-			break;
-		case '\"':
-			escaped << "&quot;";
-			break;
-		case '\'':
-			escaped << "&apos;";
-			break;
-		default:
-			escaped << data[i];
-			break;
-		}
-	}
-	return escaped.str();
+	const xmlChar *input = reinterpret_cast<const xmlChar *>(data);
+	const xmlChar *escaped = xmlEncodeSpecialChars(nullptr, input);
+	return std::string(reinterpret_cast<const char *>(escaped));
 }
 
 std::string RdfXmlParser::literalXML(const xmlChar *localname, const xmlChar *prefix, const xmlChar **namespaces,
