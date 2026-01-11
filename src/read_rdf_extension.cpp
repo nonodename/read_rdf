@@ -3,6 +3,8 @@
 #include "read_rdf_extension.hpp"
 #include "duckdb.hpp"
 #include "include/serd_buffer.hpp"
+#include "include/xml_buffer.hpp"
+#include "include/I_triples_buffer.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -16,6 +18,16 @@ using namespace std;
 
 namespace duckdb {
 
+static bool isRDFXML(const std::string &path) {
+	auto pos = path.rfind('.');
+	if (pos == std::string::npos)
+		return false;
+	std::string ext = path.substr(pos + 1);
+	for (auto &c : ext)
+		c = (char)tolower(c);
+	return (ext == "rdf" || ext == "xml");
+}
+
 struct RDFReaderBindData : public TableFunctionData {
 	string file_path;
 	string file_type;
@@ -25,7 +37,7 @@ struct RDFReaderBindData : public TableFunctionData {
 };
 
 struct RDFReaderLocalState : public LocalTableFunctionState {
-	std::unique_ptr<SerdBuffer> sb;
+	std::unique_ptr<ITriplesBuffer> ib;
 };
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
@@ -61,21 +73,26 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
                                                          GlobalTableFunctionState *global_state) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
-	auto _sb = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes);
+	auto _ib = unique_ptr<ITriplesBuffer>(nullptr);
+	if (isRDFXML(bind_data.file_path)) {
+		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes);
+	} else {
+		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes);
+	}
 	try {
-		_sb->StartParse();
+		_ib->StartParse();
 	} catch (const std::runtime_error &re) {
 		cerr << "Exception in RDFReaderInit: " << re.what() << "\n";
 		throw IOException(re.what());
 	}
-	state->sb = std::move(_sb);
+	state->ib = std::move(_ib);
 	return state;
 }
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
 	auto &state = (RDFReaderLocalState &)*input.local_state;
 	// Delegate the filling entirely to the buffer
-	state.sb->PopulateChunk(output);
+	state.ib->PopulateChunk(output);
 }
 
 static void LoadInternal(ExtensionLoader &loader) {

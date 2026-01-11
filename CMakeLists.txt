@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 3.10)
 set(TARGET_NAME read_rdf)
 set(SERD_NAME serd_lib)
 
+find_package(LibXml2 REQUIRED)
+
 project(${TARGET_NAME} LANGUAGES C CXX)
 
 set(EXTENSION_NAME         ${TARGET_NAME}_extension)
@@ -14,6 +16,8 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 set(EXTENSION_SOURCES
     src/read_rdf_extension.cpp
     src/serd_buffer.cpp
+    src/rdf_xml_parser.cpp
+    src/xml_buffer.cpp
 )
 
 # ------------------------------------------------------------
@@ -56,20 +60,24 @@ target_include_directories(${EXTENSION_NAME}
     PRIVATE
         src/include
         serd/include
+    ${LIBXML2_INCLUDE_DIR}
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         serd/include
+    ${LIBXML2_INCLUDE_DIR}
 )
 
 # Link SERD internally (no leakage, no exports)
 target_link_libraries(${EXTENSION_NAME}
         ${SERD_NAME}
+        LibXml2::LibXml2
 )
 
 target_link_libraries(${LOADABLE_EXTENSION_NAME}
         ${SERD_NAME}
+        LibXml2::LibXml2
 )
 
 # Windows: force static SERD behavior (avoid dllimport)

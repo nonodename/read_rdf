@@ -2,30 +2,18 @@
 #define SERD_BUFFER_H
 
 #include <string>
-#include <queue>
 #include "duckdb.hpp"
 #include <serd/serd.h>
+#include "I_triples_buffer.hpp"
 #include <memory>
 using namespace std;
 
 /*
-    Holder for a single row of RDF
-*/
-struct RDFRow {
-	string graph;
-	string subject;
-	string predicate;
-	string object;
-	string datatype;
-	string lang;
-};
-
-/*
     Buffer that reads RDF data from a file using Serd and stores it in memory
 */
-class SerdBuffer {
+class SerdBuffer : public ITriplesBuffer {
 public:
-	SerdBuffer(const std::string &path, const std::string &base_uri, const bool strict_parsing = true,
+	SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing = true,
 	           const bool expand_prefixes = false);
 
 	~SerdBuffer();
@@ -46,21 +34,11 @@ private:
 	static SerdStatus PrefixCallback(void *, const SerdNode *, const SerdNode *);
 
 private:
-	duckdb::DataChunk *_current_chunk = nullptr;
-	duckdb::idx_t _current_count = 0;
-	// Small buffer for when Serd emits more rows than fit in the current chunk
-	std::deque<RDFRow> _overflow_buffer;
-
 	std::unique_ptr<SerdReader, decltype(&serd_reader_free)> _reader;
-	std::unique_ptr<FILE, decltype(&fclose)> _file;
 	std::unique_ptr<SerdEnv, decltype(&serd_env_free)> _env;
-	std::string file_path;
-	std::queue<RDFRow> rows;
-	bool eof = false;
+
 	bool _has_error = false;
 	std::string _error_message;
-	bool _strict_parsing = true;
-	bool _expand_prefixes = false;
 	uint64_t target_rows;
 };
 
