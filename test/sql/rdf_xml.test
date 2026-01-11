@@ -99,27 +99,15 @@ execute determine_delta(testFile := 'test/xmlrdf/example20');
 ----
 0
 
-
-### Failing tests
-
 # Example 18
-#query T
-#execute determine_delta(testFile := 'test/xmlrdf/example18');
-#----
-#0
-
-
-## Blank node not working correctly
-
-# Example 18
-#query T
-#execute determine_delta(testFile := 'test/xmlrdf/example11');
-#----
-#0
+query T
+execute determine_delta(testFile := 'test/xmlrdf/example11');
+----
+0
 
 # Example 19
-#query T
-#execute determine_delta(testFile := 'test/xmlrdf/example19');
-#----
-#0
+query T
+execute determine_delta(testFile := 'test/xmlrdf/example19');
+----
+0
 

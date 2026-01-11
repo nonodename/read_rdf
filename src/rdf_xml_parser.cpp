@@ -13,7 +13,7 @@ RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, Error
 }
 
 void RdfXmlParser::parseChunk(const char *chunk, int size, bool is_final) {
-	if (_at_eof) { // permit multiple safe calls with is_final true
+	if (_at_eof) {
 		return;
 	}
 	_at_eof = is_final;
@@ -23,16 +23,17 @@ void RdfXmlParser::parseChunk(const char *chunk, int size, bool is_final) {
 		on_error("XML parsing error");
 	}
 }
+
 void RdfXmlParser::addNameSpace(const std::string &prefix, const std::string &uri) {
 	_nameSpaces[prefix] = uri;
 }
+
 RdfXmlParser::~RdfXmlParser() {
 }
 
 bool RdfXmlParser::isAbsolute(const std::string &uri) {
 	xmlURI *uri_parsed = xmlParseURI(uri.c_str());
-	bool has_scheme = false;
-	has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
+	bool has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
 	xmlFreeURI(uri_parsed);
 	return has_scheme;
 }
@@ -74,41 +75,45 @@ std::string RdfXmlParser::currentBaseURI() {
 std::string RdfXmlParser::xmlEscape(const std::string &data) {
 	const xmlChar *input = reinterpret_cast<xmlChar *>(const_cast<char *>(data.c_str()));
 	const xmlChar *escaped = xmlEncodeSpecialChars(nullptr, input);
-	return std::string(reinterpret_cast<const char *>(escaped));
+	std::string res = std::string(reinterpret_cast<const char *>(escaped));
+	xmlFree((void *)escaped);
+	return res;
 }
 
 std::string RdfXmlParser::xmlEscape(const char *data, int len) {
-	const xmlChar *input = reinterpret_cast<const xmlChar *>(data);
+	char *temp = new char[len + 1];
+	memcpy(temp, data, len);
+	temp[len] = '\0';
+	const xmlChar *input = reinterpret_cast<const xmlChar *>(temp);
 	const xmlChar *escaped = xmlEncodeSpecialChars(nullptr, input);
-	return std::string(reinterpret_cast<const char *>(escaped));
+	std::string res = std::string(reinterpret_cast<const char *>(escaped));
+	xmlFree((void *)escaped);
+	delete[] temp;
+	return res;
 }
 
 std::string RdfXmlParser::literalXML(const xmlChar *localname, const xmlChar *prefix, const xmlChar **namespaces,
                                      int nb_namespaces, const xmlChar **attributes, int nb_attributes) {
-	// TODO handle namespaces per the example
 	std::ostringstream oss;
 	oss << "<";
 	if (prefix)
 		oss << (const char *)prefix << ":";
 	oss << (const char *)localname;
 
-	// Namespaces: nb_namespaces is the count of pairs
 	for (int i = 0; i < nb_namespaces; ++i) {
 		oss << " xmlns";
 		if (namespaces[i * 2])
 			oss << ":" << (const char *)namespaces[i * 2];
-		oss << "=\\\"" << (const char *)namespaces[i * 2 + 1] << "\\\"";
+		oss << "=\"" << (const char *)namespaces[i * 2 + 1] << "\"";
 	}
 
-	// Attributes: attributes are 5-tuple (localname, prefix, URI, value_start, value_end)
 	for (int i = 0; i < nb_attributes; ++i) {
 		oss << " " << (const char *)attributes[i * 5];
 		std::string val((const char *)attributes[i * 5 + 3],
 		                (const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
-		oss << "=\\\"" << xmlEscape(val) << "\\\"";
+		oss << "=\"" << xmlEscape(val) << "\"";
 	}
 	oss << ">";
-
 	return oss.str();
 }
 
@@ -124,49 +129,44 @@ void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attribut
 	}
 }
 
-// TODO add support for rdf:li elements which resolve to rdf:_1, rdf:_2, etc.
 void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
                                   int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
                                   const xmlChar **attributes) {
 	auto *self = static_cast<RdfXmlParser *>(ctx);
-
 	ElementFrame *parent_frame = self->_stack.empty() ? nullptr : &(self->_stack.back());
-	if (parent_frame && parent_frame->is_xml_literal) {
+
+	// Handle Nested XMLLiteral
+	if (parent_frame && parent_frame->type == ElementType::PROPERTY_XML_LITERAL) {
 		parent_frame->literal_depth++;
 		parent_frame->text_buf +=
 		    self->literalXML(localname, prefix, namespaces, nb_namespaces, attributes, nb_attributes);
 		return;
 	}
+
 	for (int i = 0; i < nb_namespaces; ++i) {
-		std::string prefix_str;
-		if (namespaces[i * 2]) {
-			prefix_str = std::string((const char *)namespaces[i * 2]);
-		} else {
-			prefix_str = "";
-		}
-		std::string uri_str = (const char *)namespaces[i * 2 + 1];
-		self->on_namespace(prefix_str, uri_str);
+		std::string p_str = namespaces[i * 2] ? (const char *)namespaces[i * 2] : "";
+		self->on_namespace(p_str, (const char *)namespaces[i * 2 + 1]);
 	}
 
 	std::string current_uri = self->expandUri(URI, localname);
+
+	// Handle rdf:li container membership
+	if (current_uri == self->RDF_NS + "li" && parent_frame && parent_frame->type == ElementType::NODE) {
+		parent_frame->li_counter++;
+		current_uri = self->RDF_NS + "_" + std::to_string(parent_frame->li_counter);
+	}
+
 	if (current_uri == self->RDF_NS + "RDF") {
-		ElementFrame ef = {ElementType::ROOT,
-		                   "",
-		                   self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG),
-		                   "",
-		                   "",
-		                   "",
-		                   self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG),
-		                   false,
-		                   false};
-		self->_stack.push_back(ef);
+		self->_stack.emplace_back(ElementType::ROOT, "",
+		                          self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG), "", "", "",
+		                          self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG), false);
 		return;
 	}
 
 	ElementType parent_type = parent_frame ? parent_frame->type : ElementType::ROOT;
-	ElementType current_type = (parent_type == ElementType::PROPERTY || parent_type == ElementType::ROOT)
-	                               ? ElementType::NODE
-	                               : ElementType::PROPERTY;
+	bool is_node = (parent_type == ElementType::PROPERTY || parent_type == ElementType::PROPERTY_COLLECTION ||
+	                parent_type == ElementType::ROOT);
+	ElementType current_type = is_node ? ElementType::NODE : ElementType::PROPERTY;
 
 	auto about = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->ABOUT_ATTR);
 	auto nodeID = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->NODE_ID_ATTR);
@@ -179,12 +179,8 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 
 	if (lang.empty() && parent_frame)
 		lang = parent_frame->lang;
-	if (base.empty()) {
-		if (parent_frame)
-			base = parent_frame->baseURI;
-		else
-			base = self->base_uri;
-	}
+	if (base.empty())
+		base = parent_frame ? parent_frame->baseURI : self->base_uri;
 
 	if (current_type == ElementType::NODE) {
 		std::string subject;
@@ -196,48 +192,52 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 			subject = "_:" + nodeID;
 		else
 			subject = self->generateBNode();
-		if (parent_type == ElementType::PROPERTY) {
-			parent_frame->has_obj_nodes = true;
-			ElementFrame prop = std::move(self->_stack.back());
-			self->_stack.pop_back();
-			self->emitWithReification(self->_stack.back().uri, prop.uri, subject, "", "", prop.reify_id);
-			self->_stack.push_back(std::move(prop));
+
+		if (parent_frame && (parent_type == ElementType::PROPERTY || parent_type == ElementType::PROPERTY_COLLECTION)) {
+			if (parent_type == ElementType::PROPERTY_COLLECTION) {
+				std::string list_node = self->generateBNode();
+				if (parent_frame->collection_tail.empty()) {
+					std::string prop_subject = (self->_stack.end() - 2)->uri;
+					self->emit(prop_subject, parent_frame->uri, list_node, "", "");
+				} else {
+					self->emit(parent_frame->collection_tail, self->REST_URI, list_node, "", "");
+				}
+				parent_frame->collection_tail = list_node;
+				self->emit(list_node, self->FIRST_URI, subject, "", "");
+			} else {
+				parent_frame->has_obj_nodes = true;
+				std::string prop_subject = (self->_stack.end() - 2)->uri;
+				self->emitWithReification(prop_subject, parent_frame->uri, subject, "", "", parent_frame->reify_id);
+			}
 		}
+
 		if (current_uri != self->RDF_NS + "Description")
 			self->emit(subject, self->RDF_NS + "type", current_uri, "", "");
+
 		self->processAttributes(nb_attributes, attributes, subject, lang);
-		self->_stack.push_back({ElementType::NODE, subject, lang, "", "", "", base, false, false});
+		self->_stack.emplace_back(ElementType::NODE, subject, lang, "", "", "", base, false);
 	} else { // PROPERTY
 		auto reify_uri = rdf_id.empty() ? "" : self->currentBaseURI() + "#" + rdf_id;
 
-		// Check for Property Attributes
-		bool has_prop_attrs = false;
-		for (int i = 0; i < nb_attributes; ++i) {
-			if (!self->isReservedAttr(self->expandUri(attributes[i * 5 + 2], attributes[i * 5]))) {
-				has_prop_attrs = true;
-				break;
-			}
-		}
-
-		if (parseType == "Resource") {
+		if (parseType == "Literal") {
+			self->_stack.emplace_back(ElementType::PROPERTY_XML_LITERAL, current_uri, lang, datatype, reify_uri, "", "",
+			                          false);
+		} else if (parseType == "Collection") {
+			self->_stack.emplace_back(ElementType::PROPERTY_COLLECTION, current_uri, lang, datatype, reify_uri, "", "",
+			                          false);
+		} else if (parseType == "Resource") {
 			auto bnode = self->generateBNode();
 			self->emitWithReification(parent_frame->uri, current_uri, bnode, "", "", reify_uri);
-			self->_stack.push_back({ElementType::NODE, bnode, lang, "", "", "", "", false, false});
-		} else if (!resource.empty() || !nodeID.empty() || (has_prop_attrs && parseType.empty())) {
-			// This is an "Empty Property Element"
-			if (!resource.empty() && !isAbsolute(resource)) {
-				resource = self->currentBaseURI() + resource;
-			}
-			auto object = !resource.empty() ? resource : (!nodeID.empty() ? "_:" + nodeID : self->generateBNode());
+			self->_stack.emplace_back(ElementType::NODE, bnode, lang, "", "", "", "", false);
+		} else if (!resource.empty() || !nodeID.empty()) { // Empty property element
+			auto object = !resource.empty() ? resource : "_:" + nodeID;
+			if (!resource.empty() && !isAbsolute(object))
+				object = self->currentBaseURI() + object;
 			self->emitWithReification(parent_frame->uri, current_uri, object, "", "", reify_uri);
-			// Emit triples for all property attributes on this object
 			self->processAttributes(nb_attributes, attributes, object, lang);
-			self->_stack.push_back(
-			    {ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", true, false});
+			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", true);
 		} else {
-			auto is_xml = (parseType == "Literal");
-			self->_stack.push_back(
-			    {ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", false, is_xml});
+			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, datatype, reify_uri, "", "", false);
 		}
 	}
 }
@@ -246,18 +246,19 @@ void RdfXmlParser::onEndElement(void *ctx, const xmlChar *localname, const xmlCh
 	auto *self = static_cast<RdfXmlParser *>(ctx);
 	if (self->_stack.empty())
 		return;
-	if (self->_stack.back().is_xml_literal && self->_stack.back().literal_depth > 0) {
-		auto &frame = self->_stack.back();
+
+	auto &top = self->_stack.back();
+	if (top.type == ElementType::PROPERTY_XML_LITERAL && top.literal_depth > 0) {
 		std::ostringstream oss;
 		oss << "</";
 		if (prefix)
 			oss << (const char *)prefix << ":";
 		oss << (const char *)localname << ">";
-
-		frame.text_buf += oss.str();
-		frame.literal_depth--;
+		top.text_buf += oss.str();
+		top.literal_depth--;
 		return;
 	}
+
 	auto current_uri = self->expandUri(URI, localname);
 	if (current_uri == self->RDF_NS + "RDF") {
 		self->_stack.pop_back();
@@ -267,12 +268,31 @@ void RdfXmlParser::onEndElement(void *ctx, const xmlChar *localname, const xmlCh
 	ElementFrame current = std::move(self->_stack.back());
 	self->_stack.pop_back();
 
-	if (current.type == ElementType::PROPERTY && !current.has_obj_nodes) {
+	if (current.type == ElementType::PROPERTY_COLLECTION) {
+		if (current.collection_tail.empty()) {
+			self->emit(self->_stack.back().uri, current.uri, self->NIL_URI, "", "");
+		} else {
+			self->emit(current.collection_tail, self->REST_URI, self->NIL_URI, "", "");
+		}
+	} else if ((current.type == ElementType::PROPERTY || current.type == ElementType::PROPERTY_XML_LITERAL) &&
+	           !current.has_obj_nodes) {
 		auto text = self->trim(current.text_buf);
-		auto dt = current.is_xml_literal ? self->RDF_NS + "XMLLiteral" : current.datatype;
+		auto dt = (current.type == ElementType::PROPERTY_XML_LITERAL) ? self->RDF_NS + "XMLLiteral" : current.datatype;
 		auto lit_lang = dt.empty() ? current.lang : "";
 		if (!self->_stack.empty()) {
 			self->emitWithReification(self->_stack.back().uri, current.uri, text, dt, lit_lang, current.reify_id);
+		}
+	}
+}
+
+void RdfXmlParser::onCharacters(void *ctx, const xmlChar *ch, int len) {
+	auto *self = static_cast<RdfXmlParser *>(ctx);
+	if (!self->_stack.empty()) {
+		auto &frame = self->_stack.back();
+		if (frame.type == ElementType::PROPERTY) {
+			frame.text_buf.append((const char *)ch, len);
+		} else if (frame.type == ElementType::PROPERTY_XML_LITERAL) {
+			frame.text_buf.append(xmlEscape((const char *)ch, len));
 		}
 	}
 }
@@ -291,17 +311,6 @@ void RdfXmlParser::emitWithReification(const std::string &s, const std::string &
 void RdfXmlParser::emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
                         const std::string &lang) {
 	on_statement({s, p, o, dt, lang});
-}
-
-void RdfXmlParser::onCharacters(void *ctx, const xmlChar *ch, int len) {
-	auto *self = static_cast<RdfXmlParser *>(ctx);
-	if (!self->_stack.empty() && self->_stack.back().type == ElementType::PROPERTY) {
-		if (self->_stack.back().is_xml_literal) {
-			self->_stack.back().text_buf.append(xmlEscape((const char *)ch, len));
-		} else {
-			self->_stack.back().text_buf.append((const char *)ch, len);
-		}
-	}
 }
 
 std::string RdfXmlParser::findAttr(int nb_attributes, const xmlChar **attributes, const std::string &ns,

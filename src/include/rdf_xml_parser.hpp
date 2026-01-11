@@ -39,6 +39,9 @@ public:
 private:
 	const std::string RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string XML_NS = "http://www.w3.org/XML/1998/namespace";
+	const std::string NIL_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil";
+	const std::string FIRST_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first";
+	const std::string REST_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest";
 	constexpr static char const *LANG_TAG = "lang";
 	constexpr static char const *BASE_TAG = "base";
 	constexpr static char const *ABOUT_ATTR = "about";
@@ -56,7 +59,7 @@ private:
 	std::string _blank_node_prefix = "_:b";
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
 	std::map<std::string, std::string> _nameSpaces;
-	enum class ElementType { NODE, PROPERTY, ROOT };
+	enum class ElementType { NODE, PROPERTY, PROPERTY_XML_LITERAL, PROPERTY_COLLECTION, ROOT };
 
 	struct ElementFrame {
 		ElementType type;
@@ -67,12 +70,12 @@ private:
 		std::string text_buf;
 		std::string baseURI; // Current base URI
 		bool has_obj_nodes = false;
-		bool is_xml_literal = false; // For rdf:parseType="Literal"
+		int li_counter = 0;          // Tracks rdf:_1, rdf:_2 for NODE types
+		std::string collection_tail; // Tracks the last BNode in an rdf:parseType="Collection"
 		int literal_depth = 0;       // For tracking nested XML in XMLLiteral
 		ElementFrame(ElementType t, std::string u, std::string l, std::string d, std::string r, std::string tb,
-		             std::string bu, bool obj, bool xml)
-		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj),
-		      is_xml_literal(xml) {
+		             std::string bu, bool obj)
+		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj) {
 		}
 	};
 
