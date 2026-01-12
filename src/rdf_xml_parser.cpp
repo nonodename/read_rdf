@@ -3,6 +3,25 @@
 #include <sstream>
 #include <libxml/entities.h>
 
+struct XmlFreeDeleter {
+    void operator()(xmlChar* ptr) const {
+        if (ptr) {
+            xmlFree(ptr);
+        }
+    }
+};
+
+struct XmlFreeURIDeleter {
+    void operator()(xmlURI* ptr) const {
+        if (ptr) {
+            xmlFreeURI(ptr);
+        }
+    }
+};
+
+using XmlCharPtr = std::unique_ptr<xmlChar, XmlFreeDeleter>;
+using xmlURISmartPtr = std::unique_ptr<xmlURI, XmlFreeURIDeleter>;
+
 RdfXmlParser::RdfXmlParser(StatementCallback s_cb, NamespaceCallback n_cb, ErrorCallback e_cb, std::string base)
     : on_statement(s_cb), on_namespace(n_cb), on_error(e_cb), base_uri(base), bnode_count(0),
       _ctxt(nullptr, &xmlFreeParserCtxt) {
@@ -32,9 +51,8 @@ RdfXmlParser::~RdfXmlParser() {
 }
 
 bool RdfXmlParser::isAbsolute(const std::string &uri) {
-	xmlURI *uri_parsed = xmlParseURI(uri.c_str());
+	xmlURISmartPtr uri_parsed (xmlParseURI(uri.c_str()));
 	bool has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
-	xmlFreeURI(uri_parsed);
 	return has_scheme;
 }
 
@@ -74,9 +92,8 @@ std::string RdfXmlParser::currentBaseURI() {
 
 std::string RdfXmlParser::xmlEscape(const std::string &data) {
 	const xmlChar *input = reinterpret_cast<xmlChar *>(const_cast<char *>(data.c_str()));
-	const xmlChar *escaped = xmlEncodeSpecialChars(nullptr, input);
-	std::string res = std::string(reinterpret_cast<const char *>(escaped));
-	xmlFree((void *)escaped);
+	XmlCharPtr escaped (xmlEncodeSpecialChars(nullptr, input));
+	std::string res = std::string(reinterpret_cast<const char *>(escaped.get()));
 	return res;
 }
 
@@ -85,9 +102,8 @@ std::string RdfXmlParser::xmlEscape(const char *data, int len) {
 	memcpy(temp, data, len);
 	temp[len] = '\0';
 	const xmlChar *input = reinterpret_cast<const xmlChar *>(temp);
-	const xmlChar *escaped = xmlEncodeSpecialChars(nullptr, input);
-	std::string res = std::string(reinterpret_cast<const char *>(escaped));
-	xmlFree((void *)escaped);
+	XmlCharPtr escaped (xmlEncodeSpecialChars(nullptr, input));
+	std::string res = std::string(reinterpret_cast<const char *>(escaped.get()));
 	delete[] temp;
 	return res;
 }
