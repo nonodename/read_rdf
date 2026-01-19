@@ -19,6 +19,26 @@ struct RdfStatement {
 	std::string language;
 };
 
+// Helper struct to store pointers into libXML returned buffers for intermediate comparisons
+struct LibXMLView {
+    const xmlChar* start;
+    const xmlChar* end;
+
+    LibXMLView() : start(nullptr), end(nullptr) {}
+    LibXMLView(const xmlChar* s, const xmlChar* e) : start(s), end(e) {}
+	bool equals(const xmlChar* str) const {
+		if (empty()) {
+			return (str == nullptr);
+		}
+		return xmlStrEqual(start, str);
+	}
+    bool empty() const { return start == end || start == nullptr; }
+    
+    // Helper to convert to string only when we MUST (e.g., storing in the stack)
+    std::string toString() const {
+        return empty() ? "" : std::string(reinterpret_cast<const char*>(start), end - start);
+    }
+};
 class RdfXmlParser {
 public:
 	using StatementCallback = std::function<void(const RdfStatement &)>;
@@ -37,6 +57,7 @@ public:
 	}
 
 private:
+	constexpr static char const *RDF_NS_XS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string XML_NS = "http://www.w3.org/XML/1998/namespace";
 	const std::string NIL_URI = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil";
