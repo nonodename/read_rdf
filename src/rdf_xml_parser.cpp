@@ -145,6 +145,35 @@ void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attribut
 	}
 }
 
+RdfAttributes RdfXmlParser::parseAttributes(int nb_attributes, const xmlChar **attributes) {
+	RdfAttributes result;
+	for (int i = 0; i < nb_attributes; ++i) {
+		const xmlChar* localname = attributes[i * 5];
+		const xmlChar* value_start = attributes[i * 5 + 3];
+		const xmlChar* value_end = attributes[i * 5 + 4];
+		if (xmlStrEqual(localname, (const xmlChar*)ABOUT_ATTR)) {
+			result.about = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)ID_ATTR)) {
+			result.rdf_id = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)NODE_ID_ATTR)) {
+			result.nodeID = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)RESOURCE_ATTR)) {
+			result.resource = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)DATATYPE_ATTR)) {
+			result.datatype = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)PARSE_TYPE_ATTR)) {
+			result.parseType = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)LANG_TAG)) {
+			result.lang = LibXMLView(value_start, value_end);
+		} else if (xmlStrEqual(localname, (const xmlChar*)BASE_TAG)) {
+			result.base = LibXMLView(value_start, value_end);
+		}
+	}
+	return result;
+}
+
+// idea here is to create a helper function that will iterate through the attributes
+// once and return a struct of named attributes we care about
 void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
                                   int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
                                   const xmlChar **attributes) {

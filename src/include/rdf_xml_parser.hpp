@@ -39,6 +39,17 @@ struct LibXMLView {
         return empty() ? "" : std::string(reinterpret_cast<const char*>(start), end - start);
     }
 };
+struct RdfAttributes {
+    LibXMLView about;
+    LibXMLView nodeID;
+    LibXMLView rdf_id;
+    LibXMLView resource;
+    LibXMLView datatype;
+    LibXMLView parseType;
+    LibXMLView lang;
+    LibXMLView base;
+};
+
 class RdfXmlParser {
 public:
 	using StatementCallback = std::function<void(const RdfStatement &)>;
@@ -115,6 +126,7 @@ private:
 	void setupSAX();
 	void processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
 	                       const std::string &lang);
+	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);
