@@ -219,7 +219,6 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	auto rdf_id = attrs.rdf_id.toString();
 	auto resource = attrs.resource.toString();
 	auto datatype = attrs.datatype.toString();
-	auto parseType = attrs.parseType.toString();
 	auto lang = attrs.lang.toString();
 	auto base = attrs.base.toString();
 
@@ -265,13 +264,13 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	} else { // PROPERTY
 		auto reify_uri = rdf_id.empty() ? "" : self->currentBaseURI() + "#" + rdf_id;
 
-		if (parseType == "Literal") {
+		if (attrs.parseType.equals((const xmlChar *)"Literal")) {
 			self->_stack.emplace_back(ElementType::PROPERTY_XML_LITERAL, current_uri, lang, datatype, reify_uri, "", "",
 			                          false);
-		} else if (parseType == "Collection") {
+		} else if (attrs.parseType.equals((const xmlChar *)"Collection")) {
 			self->_stack.emplace_back(ElementType::PROPERTY_COLLECTION, current_uri, lang, datatype, reify_uri, "", "",
 			                          false);
-		} else if (parseType == "Resource") {
+		} else if (attrs.parseType.equals((const xmlChar *)"Resource")) {
 			auto bnode = self->generateBNode();
 			self->emitWithReification(parent_frame->uri, current_uri, bnode, "", "", reify_uri);
 			self->_stack.emplace_back(ElementType::NODE, bnode, lang, "", "", "", "", false);

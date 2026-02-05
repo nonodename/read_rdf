@@ -30,7 +30,7 @@ struct LibXMLView {
 		if (empty()) {
 			return (str == nullptr);
 		}
-		return xmlStrEqual(start, str);
+		return xmlStrncmp(start, str, end - start) == 0 && str[xmlStrlen(str)] == '\0';
 	}
     bool empty() const { return start == end || start == nullptr; }
     
