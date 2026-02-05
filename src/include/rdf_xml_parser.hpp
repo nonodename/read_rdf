@@ -105,9 +105,9 @@ private:
 		int li_counter = 0;          // Tracks rdf:_1, rdf:_2 for NODE types
 		std::string collection_tail; // Tracks the last BNode in an rdf:parseType="Collection"
 		int literal_depth = 0;       // For tracking nested XML in XMLLiteral
-		ElementFrame(ElementType t, std::string u, std::string l, std::string d, std::string r, std::string tb,
+		ElementFrame(ElementType t, std::string u, std::string l, LibXMLView d, std::string r, std::string tb,
 		             std::string bu, bool obj)
-		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj) {
+		    : type(t), uri(u), lang(l), datatype(d.toString()), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj) {
 		}
 	};
 

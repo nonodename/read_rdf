@@ -203,7 +203,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	auto attrs = self->parseAttributes(nb_attributes, attributes, parent_frame);
 	
 	if (current_uri == self->RDF_NS + "RDF") {
-		self->_stack.emplace_back(ElementType::ROOT, "", attrs.lang.toString(), "", "", "",
+		self->_stack.emplace_back(ElementType::ROOT, "", attrs.lang.toString(), attrs.datatype, "", "",
 		                          attrs.base.toString(), false);
 		return;
 	}
@@ -253,29 +253,29 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 			self->emit(subject, self->RDF_NS + "type", current_uri, "", "");
 
 		self->processAttributes(nb_attributes, attributes, subject, lang);
-		self->_stack.emplace_back(ElementType::NODE, subject, lang, "", "", "", base, false);
+		self->_stack.emplace_back(ElementType::NODE, subject, lang, attrs.datatype, "", "", base, false);
 	} else { // PROPERTY
 		auto reify_uri = attrs.rdf_id.empty() ? "" : self->currentBaseURI() + "#" + attrs.rdf_id.toString();
 
 		if (attrs.parseType.equals((const xmlChar *)"Literal")) {
-			self->_stack.emplace_back(ElementType::PROPERTY_XML_LITERAL, current_uri, lang, attrs.datatype.toString(), reify_uri, "", "",
+			self->_stack.emplace_back(ElementType::PROPERTY_XML_LITERAL, current_uri, lang, attrs.datatype, reify_uri, "", "",
 			                          false);
 		} else if (attrs.parseType.equals((const xmlChar *)"Collection")) {
-			self->_stack.emplace_back(ElementType::PROPERTY_COLLECTION, current_uri, lang, attrs.datatype.toString(), reify_uri, "", "",
+			self->_stack.emplace_back(ElementType::PROPERTY_COLLECTION, current_uri, lang, attrs.datatype, reify_uri, "", "",
 			                          false);
 		} else if (attrs.parseType.equals((const xmlChar *)"Resource")) {
 			auto bnode = self->generateBNode();
 			self->emitWithReification(parent_frame->uri, current_uri, bnode, "", "", reify_uri);
-			self->_stack.emplace_back(ElementType::NODE, bnode, lang, "", "", "", "", false);
+			self->_stack.emplace_back(ElementType::NODE, bnode, lang, attrs.datatype, "", "", "", false);
 		} else if (!attrs.resource.empty() || !attrs.nodeID.empty()) { // Empty property element
 			auto object = !attrs.resource.empty() ? attrs.resource.toString() : "_:" + attrs.nodeID.toString();
 			if (!attrs.resource.empty() && !isAbsolute(object))
 				object = self->currentBaseURI() + object;
 			self->emitWithReification(parent_frame->uri, current_uri, object, "", "", reify_uri);
 			self->processAttributes(nb_attributes, attributes, object, lang);
-			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype.toString(), reify_uri, "", "", true);
+			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype, reify_uri, "", "", true);
 		} else {
-			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype.toString(), reify_uri, "", "", false);
+			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype, reify_uri, "", "", false);
 		}
 	}
 }
