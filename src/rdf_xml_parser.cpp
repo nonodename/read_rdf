@@ -200,11 +200,11 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		parent_frame->li_counter++;
 		current_uri = self->RDF_NS + "_" + std::to_string(parent_frame->li_counter);
 	}
-
+	auto attrs = self->parseAttributes(nb_attributes, attributes);
+	
 	if (current_uri == self->RDF_NS + "RDF") {
-		self->_stack.emplace_back(ElementType::ROOT, "",
-		                          self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG), "", "", "",
-		                          self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG), false);
+		self->_stack.emplace_back(ElementType::ROOT, "", attrs.lang.toString(), "", "", "",
+		                          attrs.base.toString(), false);
 		return;
 	}
 
@@ -213,14 +213,15 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 	                parent_type == ElementType::ROOT);
 	ElementType current_type = is_node ? ElementType::NODE : ElementType::PROPERTY;
 
-	auto about = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->ABOUT_ATTR);
-	auto nodeID = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->NODE_ID_ATTR);
-	auto rdf_id = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->ID_ATTR);
-	auto resource = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->RESOURCE_ATTR);
-	auto datatype = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->DATATYPE_ATTR);
-	auto parseType = self->findAttr(nb_attributes, attributes, self->RDF_NS, self->PARSE_TYPE_ATTR);
-	auto lang = self->findAttr(nb_attributes, attributes, self->XML_NS, self->LANG_TAG);
-	auto base = self->findAttr(nb_attributes, attributes, self->XML_NS, self->BASE_TAG);
+	
+	auto about = attrs.about.toString();
+	auto nodeID = attrs.nodeID.toString();
+	auto rdf_id = attrs.rdf_id.toString();
+	auto resource = attrs.resource.toString();
+	auto datatype = attrs.datatype.toString();
+	auto parseType = attrs.parseType.toString();
+	auto lang = attrs.lang.toString();
+	auto base = attrs.base.toString();
 
 	if (lang.empty() && parent_frame)
 		lang = parent_frame->lang;
@@ -358,16 +359,19 @@ void RdfXmlParser::emit(const std::string &s, const std::string &p, const std::s
 	on_statement({s, p, o, dt, lang});
 }
 
-std::string RdfXmlParser::findAttr(int nb_attributes, const xmlChar **attributes, const std::string &ns,
-                                   const std::string &local) {
-	for (int i = 0; i < nb_attributes; ++i) {
-		if (local == (const char *)attributes[i * 5] &&
-		    (attributes[i * 5 + 2] && ns == (const char *)attributes[i * 5 + 2])) {
-			return std::string((const char *)attributes[i * 5 + 3],
-			                   (const char *)attributes[i * 5 + 4] - (const char *)attributes[i * 5 + 3]);
-		}
-	}
-	return "";
+void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const std::string &dt,
+                        const std::string &lang) {
+	on_statement({s, p, o.toString(), dt, lang});
+}
+
+void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
+                        const std::string &lang) {
+	on_statement({s, p, o.toString(), dt.toString(), lang});
+}
+
+void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
+                        const LibXMLView &lang) {
+	on_statement({s, p, o.toString(), dt.toString(), lang.toString()});
 }
 
 std::string RdfXmlParser::expandUri(const xmlChar *URI, const xmlChar *localname) {
