@@ -19,35 +19,43 @@ struct RdfStatement {
 	std::string language;
 };
 
+class RdfXmlParser;
+
 // Helper struct to store pointers into libXML returned buffers for intermediate comparisons
 struct LibXMLView {
-    const xmlChar* start;
-    const xmlChar* end;
+	const xmlChar *start;
+	const xmlChar *end;
 
-    LibXMLView() : start(nullptr), end(nullptr) {}
-    LibXMLView(const xmlChar* s, const xmlChar* e) : start(s), end(e) {}
-	bool equals(const xmlChar* str) const {
+	LibXMLView() : start(nullptr), end(nullptr) {
+	}
+	LibXMLView(const xmlChar *s, const xmlChar *e) : start(s), end(e) {
+	}
+	bool equals(const xmlChar *str) const {
 		if (empty()) {
 			return (str == nullptr);
 		}
 		return xmlStrncmp(start, str, end - start) == 0 && str[xmlStrlen(str)] == '\0';
 	}
-    bool empty() const { return start == end || start == nullptr; }
-    
-    // Helper to convert to string only when we MUST (e.g., storing in the stack)
-    std::string toString() const {
-        return empty() ? "" : std::string(reinterpret_cast<const char*>(start), end - start);
-    }
+	bool empty() const {
+		return start == end || start == nullptr;
+	}
+
+	// Helper to convert to string only when we MUST (e.g., storing in the stack)
+	std::string toString() const {
+		return empty() ? "" : std::string(reinterpret_cast<const char *>(start), end - start);
+	}
 };
 struct RdfAttributes {
-    LibXMLView about;
-    LibXMLView nodeID;
-    LibXMLView rdf_id;
-    LibXMLView resource;
-    LibXMLView datatype;
-    LibXMLView parseType;
-    LibXMLView lang;
-    LibXMLView base;
+	LibXMLView about;
+	LibXMLView nodeID;
+	LibXMLView rdf_id;
+	LibXMLView resource;
+	LibXMLView datatype;
+	LibXMLView parseType;
+	LibXMLView lang;
+	LibXMLView base;
+
+	std::string getSubject(RdfXmlParser *parser) const;
 };
 
 class RdfXmlParser {
@@ -68,6 +76,7 @@ public:
 	}
 
 private:
+	friend struct RdfAttributes;
 	constexpr static char const *RDF_NS_XS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string XML_NS = "http://www.w3.org/XML/1998/namespace";
@@ -107,7 +116,8 @@ private:
 		int literal_depth = 0;       // For tracking nested XML in XMLLiteral
 		ElementFrame(ElementType t, std::string u, std::string l, LibXMLView d, std::string r, std::string tb,
 		             std::string bu, bool obj)
-		    : type(t), uri(u), lang(l), datatype(d.toString()), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj) {
+		    : type(t), uri(u), lang(l), datatype(d.toString()), reify_id(r), text_buf(tb), baseURI(bu),
+		      has_obj_nodes(obj) {
 		}
 	};
 
@@ -126,7 +136,7 @@ private:
 	void setupSAX();
 	void processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
 	                       const std::string &lang);
-	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes,const ElementFrame *parentFrame);
+	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes, const ElementFrame *parentFrame);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);
@@ -145,7 +155,7 @@ private:
 	void emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
 	          const LibXMLView &lang);
 	void emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
-        	  const LibXMLView &lang);
+	          const LibXMLView &lang);
 	std::string expandUri(const xmlChar *URI, const xmlChar *localname);
 
 	std::string trim(const std::string &s);

@@ -4,19 +4,19 @@
 #include <libxml/entities.h>
 
 struct XmlFreeDeleter {
-    void operator()(xmlChar* ptr) const {
-        if (ptr) {
-            xmlFree(ptr);
-        }
-    }
+	void operator()(xmlChar *ptr) const {
+		if (ptr) {
+			xmlFree(ptr);
+		}
+	}
 };
 
 struct XmlFreeURIDeleter {
-    void operator()(xmlURI* ptr) const {
-        if (ptr) {
-            xmlFreeURI(ptr);
-        }
-    }
+	void operator()(xmlURI *ptr) const {
+		if (ptr) {
+			xmlFreeURI(ptr);
+		}
+	}
 };
 
 using XmlCharPtr = std::unique_ptr<xmlChar, XmlFreeDeleter>;
@@ -51,7 +51,7 @@ RdfXmlParser::~RdfXmlParser() {
 }
 
 bool RdfXmlParser::isAbsolute(const std::string &uri) {
-	xmlURISmartPtr uri_parsed (xmlParseURI(uri.c_str()));
+	xmlURISmartPtr uri_parsed(xmlParseURI(uri.c_str()));
 	bool has_scheme = (uri_parsed != NULL && uri_parsed->scheme != NULL);
 	return has_scheme;
 }
@@ -92,7 +92,7 @@ std::string RdfXmlParser::currentBaseURI() {
 
 std::string RdfXmlParser::xmlEscape(const std::string &data) {
 	const xmlChar *input = reinterpret_cast<xmlChar *>(const_cast<char *>(data.c_str()));
-	XmlCharPtr escaped (xmlEncodeSpecialChars(nullptr, input));
+	XmlCharPtr escaped(xmlEncodeSpecialChars(nullptr, input));
 	std::string res = std::string(reinterpret_cast<const char *>(escaped.get()));
 	return res;
 }
@@ -102,7 +102,7 @@ std::string RdfXmlParser::xmlEscape(const char *data, int len) {
 	memcpy(temp, data, len);
 	temp[len] = '\0';
 	const xmlChar *input = reinterpret_cast<const xmlChar *>(temp);
-	XmlCharPtr escaped (xmlEncodeSpecialChars(nullptr, input));
+	XmlCharPtr escaped(xmlEncodeSpecialChars(nullptr, input));
 	std::string res = std::string(reinterpret_cast<const char *>(escaped.get()));
 	delete[] temp;
 	return res;
@@ -145,27 +145,28 @@ void RdfXmlParser::processAttributes(int nb_attributes, const xmlChar **attribut
 	}
 }
 
-RdfAttributes RdfXmlParser::parseAttributes(int nb_attributes, const xmlChar **attributes,const ElementFrame *parentFrame) {
+RdfAttributes RdfXmlParser::parseAttributes(int nb_attributes, const xmlChar **attributes,
+                                            const ElementFrame *parentFrame) {
 	RdfAttributes result;
 	for (int i = 0; i < nb_attributes; ++i) {
-		const xmlChar* localname = attributes[i * 5];
-		const xmlChar* value_start = attributes[i * 5 + 3];
-		const xmlChar* value_end = attributes[i * 5 + 4];
-		if (xmlStrEqual(localname, (const xmlChar*)ABOUT_ATTR)) {
+		const xmlChar *localname = attributes[i * 5];
+		const xmlChar *value_start = attributes[i * 5 + 3];
+		const xmlChar *value_end = attributes[i * 5 + 4];
+		if (xmlStrEqual(localname, (const xmlChar *)ABOUT_ATTR)) {
 			result.about = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)ID_ATTR)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)ID_ATTR)) {
 			result.rdf_id = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)NODE_ID_ATTR)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)NODE_ID_ATTR)) {
 			result.nodeID = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)RESOURCE_ATTR)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)RESOURCE_ATTR)) {
 			result.resource = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)DATATYPE_ATTR)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)DATATYPE_ATTR)) {
 			result.datatype = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)PARSE_TYPE_ATTR)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)PARSE_TYPE_ATTR)) {
 			result.parseType = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)LANG_TAG)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)LANG_TAG)) {
 			result.lang = LibXMLView(value_start, value_end);
-		} else if (xmlStrEqual(localname, (const xmlChar*)BASE_TAG)) {
+		} else if (xmlStrEqual(localname, (const xmlChar *)BASE_TAG)) {
 			result.base = LibXMLView(value_start, value_end);
 		}
 	}
@@ -201,7 +202,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		current_uri = self->RDF_NS + "_" + std::to_string(parent_frame->li_counter);
 	}
 	auto attrs = self->parseAttributes(nb_attributes, attributes, parent_frame);
-	
+
 	if (current_uri == self->RDF_NS + "RDF") {
 		self->_stack.emplace_back(ElementType::ROOT, "", attrs.lang.toString(), attrs.datatype, "", "",
 		                          attrs.base.toString(), false);
@@ -221,15 +222,7 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		lang = parent_frame->lang;
 
 	if (current_type == ElementType::NODE) {
-		std::string subject;
-		if (!attrs.about.empty())
-			subject = attrs.about.toString();
-		else if (!attrs.rdf_id.empty())
-			subject = self->currentBaseURI() + "#" + attrs.rdf_id.toString();
-		else if (!attrs.nodeID.empty())
-			subject = "_:" + attrs.nodeID.toString();
-		else
-			subject = self->generateBNode();
+		std::string subject = attrs.getSubject(self);
 
 		if (parent_frame && (parent_type == ElementType::PROPERTY || parent_type == ElementType::PROPERTY_COLLECTION)) {
 			if (parent_type == ElementType::PROPERTY_COLLECTION) {
@@ -258,11 +251,11 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 		auto reify_uri = attrs.rdf_id.empty() ? "" : self->currentBaseURI() + "#" + attrs.rdf_id.toString();
 
 		if (attrs.parseType.equals((const xmlChar *)"Literal")) {
-			self->_stack.emplace_back(ElementType::PROPERTY_XML_LITERAL, current_uri, lang, attrs.datatype, reify_uri, "", "",
-			                          false);
+			self->_stack.emplace_back(ElementType::PROPERTY_XML_LITERAL, current_uri, lang, attrs.datatype, reify_uri,
+			                          "", "", false);
 		} else if (attrs.parseType.equals((const xmlChar *)"Collection")) {
-			self->_stack.emplace_back(ElementType::PROPERTY_COLLECTION, current_uri, lang, attrs.datatype, reify_uri, "", "",
-			                          false);
+			self->_stack.emplace_back(ElementType::PROPERTY_COLLECTION, current_uri, lang, attrs.datatype, reify_uri,
+			                          "", "", false);
 		} else if (attrs.parseType.equals((const xmlChar *)"Resource")) {
 			auto bnode = self->generateBNode();
 			self->emitWithReification(parent_frame->uri, current_uri, bnode, "", "", reify_uri);
@@ -273,9 +266,11 @@ void RdfXmlParser::onStartElement(void *ctx, const xmlChar *localname, const xml
 				object = self->currentBaseURI() + object;
 			self->emitWithReification(parent_frame->uri, current_uri, object, "", "", reify_uri);
 			self->processAttributes(nb_attributes, attributes, object, lang);
-			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype, reify_uri, "", "", true);
+			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype, reify_uri, "", "",
+			                          true);
 		} else {
-			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype, reify_uri, "", "", false);
+			self->_stack.emplace_back(ElementType::PROPERTY, current_uri, lang, attrs.datatype, reify_uri, "", "",
+			                          false);
 		}
 	}
 }
@@ -368,6 +363,17 @@ void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXML
 void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
                         const LibXMLView &lang) {
 	on_statement({s, p, o.toString(), dt.toString(), lang.toString()});
+}
+
+std::string RdfAttributes::getSubject(RdfXmlParser *parser) const {
+	if (!about.empty())
+		return about.toString();
+	else if (!rdf_id.empty())
+		return parser->currentBaseURI() + "#" + rdf_id.toString();
+	else if (!nodeID.empty())
+		return "_:" + nodeID.toString();
+	else
+		return parser->generateBNode();
 }
 
 std::string RdfXmlParser::expandUri(const xmlChar *URI, const xmlChar *localname) {
