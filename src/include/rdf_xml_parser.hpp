@@ -126,7 +126,7 @@ private:
 	void setupSAX();
 	void processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
 	                       const std::string &lang);
-	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes);
+	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes,const ElementFrame *parentFrame);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);
@@ -144,7 +144,8 @@ private:
 	          const std::string &lang);
 	void emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
 	          const LibXMLView &lang);
-
+	void emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
+        	  const LibXMLView &lang);
 	std::string expandUri(const xmlChar *URI, const xmlChar *localname);
 
 	std::string trim(const std::string &s);
