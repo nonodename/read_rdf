@@ -100,6 +100,17 @@ private:
 	std::string _blank_node_prefix = "_:b";
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
 	std::map<std::string, std::string> _nameSpaces;
+
+	// Cached RDF URIs to avoid repeated string concatenations
+	std::string RDF_LI_URI;
+	std::string RDF_TYPE_URI;
+	std::string RDF_DESCRIPTION_URI;
+	std::string RDF_RDF_URI;
+	std::string RDF_STATEMENT_URI;
+	std::string RDF_SUBJECT_URI;
+	std::string RDF_PREDICATE_URI;
+	std::string RDF_OBJECT_URI;
+	std::string RDF_XMLLITERAL_URI;
 	enum class ElementType { NODE, PROPERTY, PROPERTY_XML_LITERAL, PROPERTY_COLLECTION, ROOT };
 
 	struct ElementFrame {
@@ -137,6 +148,27 @@ private:
 	void processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
 	                       const std::string &lang);
 	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes, const ElementFrame *parentFrame);
+
+	// Helper methods for onStartElement refactoring
+	ElementType determineParentType(const ElementFrame *parent_frame) const;
+	bool determineIsNode(ElementType parent_type) const;
+	void resolveBaseAndLang(std::string &base, std::string &lang, const RdfAttributes &attrs,
+	                        const ElementFrame *parent_frame);
+	void processNodeInPropertyContext(ElementFrame *parent_frame, ElementType parent_type, const std::string &subject,
+	                                  const RdfAttributes &attrs);
+	void processNodeElement(ElementFrame *parent_frame, ElementType parent_type, const std::string &current_uri,
+	                        const std::string &subject, const RdfAttributes &attrs, int nb_attributes,
+	                        const xmlChar **attributes, const std::string &lang, const std::string &base);
+	void processPropertyElement(ElementFrame *parent_frame, const std::string &current_uri, const RdfAttributes &attrs,
+	                            int nb_attributes, const xmlChar **attributes, const std::string &lang);
+	void handlePropertyLiteral(const std::string &current_uri, const RdfAttributes &attrs, const std::string &lang);
+	void handlePropertyCollection(const std::string &current_uri, const RdfAttributes &attrs, const std::string &lang);
+	void handlePropertyResource(ElementFrame *parent_frame, const std::string &current_uri, const RdfAttributes &attrs,
+	                            const std::string &lang);
+	void handlePropertyWithObject(ElementFrame *parent_frame, const std::string &current_uri,
+	                              const RdfAttributes &attrs, int nb_attributes, const xmlChar **attributes,
+	                              const std::string &lang);
+	void handleEmptyProperty(const std::string &current_uri, const RdfAttributes &attrs, const std::string &lang);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);
