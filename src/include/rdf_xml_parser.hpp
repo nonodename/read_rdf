@@ -180,14 +180,6 @@ private:
 	                         const std::string &lang, const std::string &r_id);
 	void emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
 	          const std::string &lang);
-	void emit(const std::string &s, const std::string &p, const LibXMLView &o, const std::string &dt,
-	          const std::string &lang);
-	void emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
-	          const std::string &lang);
-	void emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
-	          const LibXMLView &lang);
-	void emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
-	          const LibXMLView &lang);
 	std::string expandUri(const xmlChar *URI, const xmlChar *localname);
 
 	std::string trim(const std::string &s);

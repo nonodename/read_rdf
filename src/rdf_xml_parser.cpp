@@ -426,25 +426,6 @@ void RdfXmlParser::emit(const std::string &s, const std::string &p, const std::s
 	on_statement({s, p, o, dt, lang});
 }
 
-void RdfXmlParser::emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
-                        const LibXMLView &lang) {
-	on_statement({s, p, o, dt, lang.toString()});
-}
-void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const std::string &dt,
-                        const std::string &lang) {
-	on_statement({s, p, o.toString(), dt, lang});
-}
-
-void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
-                        const std::string &lang) {
-	on_statement({s, p, o.toString(), dt.toString(), lang});
-}
-
-void RdfXmlParser::emit(const std::string &s, const std::string &p, const LibXMLView &o, const LibXMLView &dt,
-                        const LibXMLView &lang) {
-	on_statement({s, p, o.toString(), dt.toString(), lang.toString()});
-}
-
 std::string RdfAttributes::getSubject(RdfXmlParser *parser) const {
 	if (!about.empty())
 		return about.toString();
