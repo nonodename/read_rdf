@@ -1,12 +1,20 @@
-# ReadRdf
+# Read_Rdf
 
 This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
 
 ---
 
-This extension, ReadRdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used the file extension is `.rdf` or `.xml`.
+This extension, Read_Rdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used the file extension is `.rdf` or `.xml`.
 
-Six columns are returned for RDF. Some will be null if the associated values aren't present. Graph (if present), Subject, predicate, object, language_tag (if present), datatype (if present).
+Six columns are returned for RDF. Three are always not null:
+* subject
+* predicate
+* object
+
+The other three columns will be null if no value is provided in the underlying RDF file:
+* graph
+* language_tag
+* datatype
 
 ## Building
 ### Managing dependencies
@@ -26,6 +34,7 @@ To build the extension, first clone this repo. Then in the repo base locally run
 ```sh
 git submodule update --init --recursive
 ```
+(That command also works for updating to the latest version of the submodules) 
 To get the source for DuckDB, Serd and CI-tools. Next run: 
 
 ```sh
@@ -48,7 +57,7 @@ The main binaries that will be built are:
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single table function `read_rdf()` that takes a single string arguments (the name of the RDF file) and returns a table:
+Now we can use the features from the extension directly in DuckDB. The template contains a single table function `read_rdf()` that takes a single string argument (the name of the RDF file) and returns a table:
 ```
 D select subject, predicate from read_rdf('test/rdf/tests.nt');
 ┌───────────────────────────────────┬─────────────────────────────────────────────────┐
@@ -130,3 +139,7 @@ If you'd like to see this listed as a community extension, please file an issue 
 Potential future enhancements are 
 * support file globbing (e.g. a directory of RDF files)
 * override file extension mapping
+
+## Reporting bugs
+
+Please report bugs as issues on this project. Provide a sample RDF file that demonstrates the bug as well as steps to reproduce.
