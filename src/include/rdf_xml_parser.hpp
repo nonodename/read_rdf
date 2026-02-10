@@ -19,26 +19,45 @@ struct RdfStatement {
 	std::string language;
 };
 
+class RdfXmlParser;
+
 // Helper struct to store pointers into libXML returned buffers for intermediate comparisons
 struct LibXMLView {
-    const xmlChar* start;
-    const xmlChar* end;
+	const xmlChar *start;
+	const xmlChar *end;
 
-    LibXMLView() : start(nullptr), end(nullptr) {}
-    LibXMLView(const xmlChar* s, const xmlChar* e) : start(s), end(e) {}
-	bool equals(const xmlChar* str) const {
+	LibXMLView() : start(nullptr), end(nullptr) {
+	}
+	LibXMLView(const xmlChar *s, const xmlChar *e) : start(s), end(e) {
+	}
+	bool equals(const xmlChar *str) const {
 		if (empty()) {
 			return (str == nullptr);
 		}
-		return xmlStrEqual(start, str);
+		return xmlStrncmp(start, str, end - start) == 0 && str[xmlStrlen(str)] == '\0';
 	}
-    bool empty() const { return start == end || start == nullptr; }
-    
-    // Helper to convert to string only when we MUST (e.g., storing in the stack)
-    std::string toString() const {
-        return empty() ? "" : std::string(reinterpret_cast<const char*>(start), end - start);
-    }
+	bool empty() const {
+		return start == end || start == nullptr;
+	}
+
+	// Helper to convert to string only when we MUST (e.g., storing in the stack)
+	std::string toString() const {
+		return empty() ? "" : std::string(reinterpret_cast<const char *>(start), end - start);
+	}
 };
+struct RdfAttributes {
+	LibXMLView about;
+	LibXMLView nodeID;
+	LibXMLView rdf_id;
+	LibXMLView resource;
+	LibXMLView datatype;
+	LibXMLView parseType;
+	LibXMLView lang;
+	LibXMLView base;
+
+	std::string getSubject(RdfXmlParser *parser) const;
+};
+
 class RdfXmlParser {
 public:
 	using StatementCallback = std::function<void(const RdfStatement &)>;
@@ -57,6 +76,7 @@ public:
 	}
 
 private:
+	friend struct RdfAttributes;
 	constexpr static char const *RDF_NS_XS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	const std::string XML_NS = "http://www.w3.org/XML/1998/namespace";
@@ -80,6 +100,17 @@ private:
 	std::string _blank_node_prefix = "_:b";
 	std::unique_ptr<xmlParserCtxt, decltype(&xmlFreeParserCtxt)> _ctxt;
 	std::map<std::string, std::string> _nameSpaces;
+
+	// Cached RDF URIs to avoid repeated string concatenations
+	std::string RDF_LI_URI;
+	std::string RDF_TYPE_URI;
+	std::string RDF_DESCRIPTION_URI;
+	std::string RDF_RDF_URI;
+	std::string RDF_STATEMENT_URI;
+	std::string RDF_SUBJECT_URI;
+	std::string RDF_PREDICATE_URI;
+	std::string RDF_OBJECT_URI;
+	std::string RDF_XMLLITERAL_URI;
 	enum class ElementType { NODE, PROPERTY, PROPERTY_XML_LITERAL, PROPERTY_COLLECTION, ROOT };
 
 	struct ElementFrame {
@@ -94,9 +125,10 @@ private:
 		int li_counter = 0;          // Tracks rdf:_1, rdf:_2 for NODE types
 		std::string collection_tail; // Tracks the last BNode in an rdf:parseType="Collection"
 		int literal_depth = 0;       // For tracking nested XML in XMLLiteral
-		ElementFrame(ElementType t, std::string u, std::string l, std::string d, std::string r, std::string tb,
+		ElementFrame(ElementType t, std::string u, std::string l, LibXMLView d, std::string r, std::string tb,
 		             std::string bu, bool obj)
-		    : type(t), uri(u), lang(l), datatype(d), reify_id(r), text_buf(tb), baseURI(bu), has_obj_nodes(obj) {
+		    : type(t), uri(u), lang(l), datatype(d.toString()), reify_id(r), text_buf(tb), baseURI(bu),
+		      has_obj_nodes(obj) {
 		}
 	};
 
@@ -115,6 +147,28 @@ private:
 	void setupSAX();
 	void processAttributes(int nb_attributes, const xmlChar **attributes, const std::string &subject,
 	                       const std::string &lang);
+	RdfAttributes parseAttributes(int nb_attributes, const xmlChar **attributes, const ElementFrame *parentFrame);
+
+	// Helper methods for onStartElement refactoring
+	ElementType determineParentType(const ElementFrame *parent_frame) const;
+	bool determineIsNode(ElementType parent_type) const;
+	void resolveBaseAndLang(std::string &base, std::string &lang, const RdfAttributes &attrs,
+	                        const ElementFrame *parent_frame);
+	void processNodeInPropertyContext(ElementFrame *parent_frame, ElementType parent_type, const std::string &subject,
+	                                  const RdfAttributes &attrs);
+	void processNodeElement(ElementFrame *parent_frame, ElementType parent_type, const std::string &current_uri,
+	                        const std::string &subject, const RdfAttributes &attrs, int nb_attributes,
+	                        const xmlChar **attributes, const std::string &lang, const std::string &base);
+	void processPropertyElement(ElementFrame *parent_frame, const std::string &current_uri, const RdfAttributes &attrs,
+	                            int nb_attributes, const xmlChar **attributes, const std::string &lang);
+	void handlePropertyLiteral(const std::string &current_uri, const RdfAttributes &attrs, const std::string &lang);
+	void handlePropertyCollection(const std::string &current_uri, const RdfAttributes &attrs, const std::string &lang);
+	void handlePropertyResource(ElementFrame *parent_frame, const std::string &current_uri, const RdfAttributes &attrs,
+	                            const std::string &lang);
+	void handlePropertyWithObject(ElementFrame *parent_frame, const std::string &current_uri,
+	                              const RdfAttributes &attrs, int nb_attributes, const xmlChar **attributes,
+	                              const std::string &lang);
+	void handleEmptyProperty(const std::string &current_uri, const RdfAttributes &attrs, const std::string &lang);
 	static void onStartElement(void *ctx, const xmlChar *localname, const xmlChar *prefix, const xmlChar *URI,
 	                           int nb_namespaces, const xmlChar **namespaces, int nb_attributes, int nb_defaulted,
 	                           const xmlChar **attributes);
@@ -126,10 +180,6 @@ private:
 	                         const std::string &lang, const std::string &r_id);
 	void emit(const std::string &s, const std::string &p, const std::string &o, const std::string &dt,
 	          const std::string &lang);
-
-	std::string findAttr(int nb_attributes, const xmlChar **attributes, const std::string &ns,
-	                     const std::string &local);
-
 	std::string expandUri(const xmlChar *URI, const xmlChar *localname);
 
 	std::string trim(const std::string &s);
