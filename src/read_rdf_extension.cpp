@@ -19,27 +19,7 @@ using namespace std;
 
 namespace duckdb {
 
-static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
-	auto pos = path.rfind('.');
-	if (pos == std::string::npos)
-		return ITriplesBuffer::UNKNOWN;
-	std::string ext = path.substr(pos + 1);
-	for (auto &c : ext)
-		c = (char)tolower(c);
-	if (ext == "ttl" || ext == "turtle")
-		return ITriplesBuffer::TURTLE;
-	if (ext == "nq" || ext == "nquads")
-		return ITriplesBuffer::NQUADS;
-	if (ext == "nt" || ext == "ntriples")
-		return ITriplesBuffer::NTRIPLES;
-	if (ext == "trig")
-		return ITriplesBuffer::TRIG;
-	if (ext == "rdf" || ext == "xml")
-		return ITriplesBuffer::XML;
-	return ITriplesBuffer::UNKNOWN;
-}
-
-static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
+static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s){
 	std::string x = s;
 	for (auto &c : x)
 		c = (char)tolower(c);
@@ -53,7 +33,22 @@ static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
 		return ITriplesBuffer::TRIG;
 	if (x == "rdf" || x == "xml")
 		return ITriplesBuffer::XML;
-	throw std::runtime_error("Unknown file_type override: '" + s + "'");
+	return ITriplesBuffer::UNKNOWN;
+}
+
+static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
+	auto pos = path.rfind('.');
+	if (pos == std::string::npos)
+		return ITriplesBuffer::UNKNOWN;
+	std::string ext = path.substr(pos + 1);
+	return ConvertLabelToFileType(ext);
+}
+
+static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
+	ITriplesBuffer::FileType ft = ConvertLabelToFileType(s);
+	if (ft == ITriplesBuffer::UNKNOWN) 
+		throw std::runtime_error("Unknown file_type override: '" + s + "'");
+	return ft;
 }
 
 struct RDFReaderBindData : public TableFunctionData {
@@ -74,7 +69,6 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	// TODO
 	// Check input count
 	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
-	// Permit caller to expand prefixed values
 	auto &fs = FileSystem::GetFileSystem(context);
 	string expanded = fs.ExpandPath(input.inputs[0].GetValue<string>());
 	string normalized = fs.NormalizeAbsolutePath(expanded);
@@ -108,14 +102,20 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
 	auto _ib = unique_ptr<ITriplesBuffer>(nullptr);
-	if (bind_data.file_type == ITriplesBuffer::XML) {
-		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
-		                           bind_data.file_type);
-	} else if (bind_data.file_type == ITriplesBuffer::UNKNOWN) {
-		throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
-	} else {
-		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
-		                            bind_data.file_type);
+	switch(bind_data.file_type) {
+		case ITriplesBuffer::TURTLE:
+		case ITriplesBuffer::NQUADS:
+		case ITriplesBuffer::NTRIPLES:
+		case ITriplesBuffer::TRIG:
+			_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
+			                            bind_data.file_type);
+			break;
+		case ITriplesBuffer::XML:
+			_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
+			                           bind_data.file_type);
+			break;
+		default:
+			throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
 	}
 	try {
 		_ib->StartParse();
