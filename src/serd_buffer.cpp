@@ -5,30 +5,11 @@
 #include <stdexcept>
 #include <memory>
 
-// Simple function to determine RDF syntax from file extension
-static SerdSyntax SyntaxFromPath(const std::string &path) {
-	auto pos = path.rfind('.');
-	if (pos == std::string::npos)
-		return SERD_NTRIPLES;
-	std::string ext = path.substr(pos + 1);
-	for (auto &c : ext)
-		c = (char)tolower(c);
-	if (ext == "ttl" || ext == "turtle")
-		return SERD_TURTLE;
-	if (ext == "nq" || ext == "nquads")
-		return SERD_NQUADS;
-	if (ext == "nt" || ext == "ntriples")
-		return SERD_NTRIPLES;
-	if (ext == "trig")
-		return SERD_TRIG;
-	// default fallback to N-Triples
-	return SERD_NTRIPLES;
-}
-
 /*
     SerdBuffer constructor. Using managed pointers for the SERD calls
 */
-SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
+SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes,
+                       const ITriplesBuffer::FileType file_type)
     : _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free),
       ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes) {
 	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows
@@ -47,7 +28,29 @@ SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict
 	}
 	_env.reset(t_env);
 	_strict_parsing = strict_parsing;
-	SerdSyntax syntax = SyntaxFromPath(path);
+	SerdSyntax syntax;
+	switch (file_type) {
+	case ITriplesBuffer::TURTLE:
+		syntax = SERD_TURTLE;
+		break;
+	case ITriplesBuffer::NQUADS:
+		syntax = SERD_NQUADS;
+		break;
+	case ITriplesBuffer::NTRIPLES:
+		syntax = SERD_NTRIPLES;
+		break;
+	case ITriplesBuffer::TRIG:
+		syntax = SERD_TRIG;
+		break;
+	// XML/RDF shouldn't be handled by SerdBuffer; throw to indicate misuse
+	// Auto should have been handled by caller
+	case ITriplesBuffer::XML:
+	case ITriplesBuffer::RDF:
+	case ITriplesBuffer::AUTO:
+	case ITriplesBuffer::UNKNOWN:
+	default:
+		throw std::runtime_error("SerdBuffer cannot parse XML/RDF or unknown file types");
+	}
 	if (syntax != SERD_NQUADS && syntax != SERD_NTRIPLES) {
 		_expand_prefixes = expand_prefixes;
 	} else { // Prefixes don't make sense in triple/quad formats

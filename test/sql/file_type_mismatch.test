@@ -1,0 +1,15 @@
+# name: test/sql/file_type_mismatch.test
+# description: parsing fails when file_type mismatches content
+# group: [sql]
+
+require read_rdf
+
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'nt');
+----
+Syntax Error: SERD parsing error 'Invalid syntax', at line 4
+
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'rdf');
+----
+Syntax Error: Error: XML parsing error

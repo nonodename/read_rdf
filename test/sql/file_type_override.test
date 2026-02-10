@@ -1,0 +1,13 @@
+# name: test/sql/file_type_override.test
+# description: test file_type override in read_rdf extension
+# group: [sql]
+
+require read_rdf
+
+# Use a fake extension but override to TTL
+query T
+SELECT object FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'ttl')
+WHERE subject LIKE 'jane%'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
