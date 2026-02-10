@@ -19,7 +19,7 @@ struct RDFRow {
 class ITriplesBuffer {
 public:
 	// Supported file type hints for parsing
-	enum FileType { AUTO = 0, TURTLE, NQUADS, NTRIPLES, TRIG, XML, RDF, UNKNOWN };
+	enum FileType { TURTLE = 0, NQUADS, NTRIPLES, TRIG, XML, UNKNOWN };
 
 	ITriplesBuffer(std::string path, std::string base_uri, bool strict_parsing = true,
 	               const bool expand_prefixes = false)

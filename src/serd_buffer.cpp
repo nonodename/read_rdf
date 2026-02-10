@@ -45,8 +45,6 @@ SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict
 	// XML/RDF shouldn't be handled by SerdBuffer; throw to indicate misuse
 	// Auto should have been handled by caller
 	case ITriplesBuffer::XML:
-	case ITriplesBuffer::RDF:
-	case ITriplesBuffer::AUTO:
 	case ITriplesBuffer::UNKNOWN:
 	default:
 		throw std::runtime_error("SerdBuffer cannot parse XML/RDF or unknown file types");

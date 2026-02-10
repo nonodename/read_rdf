@@ -34,9 +34,7 @@ static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) 
 		return ITriplesBuffer::NTRIPLES;
 	if (ext == "trig")
 		return ITriplesBuffer::TRIG;
-	if (ext == "rdf")
-		return ITriplesBuffer::RDF;
-	if (ext == "xml")
+	if (ext == "rdf" || ext == "xml")
 		return ITriplesBuffer::XML;
 	return ITriplesBuffer::UNKNOWN;
 }
@@ -53,16 +51,14 @@ static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
 		return ITriplesBuffer::NTRIPLES;
 	if (x == "trig")
 		return ITriplesBuffer::TRIG;
-	if (x == "rdf")
-		return ITriplesBuffer::RDF;
-	if (x == "xml")
+	if (x == "rdf" || x == "xml")
 		return ITriplesBuffer::XML;
 	throw std::runtime_error("Unknown file_type override: '" + s + "'");
 }
 
 struct RDFReaderBindData : public TableFunctionData {
 	string file_path;
-	ITriplesBuffer::FileType file_type = ITriplesBuffer::AUTO;
+	ITriplesBuffer::FileType file_type = ITriplesBuffer::TURTLE;
 	string baseURI;
 	bool strict_parsing = true;
 	bool expand_prefixes = false;
@@ -79,13 +75,16 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	// Check input count
 	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
 	// Permit caller to expand prefixed values
-	result->file_path = input.inputs[0].GetValue<string>();
+	auto &fs = FileSystem::GetFileSystem(context);
+	string expanded = fs.ExpandPath(input.inputs[0].GetValue<string>());
+	string normalized = fs.NormalizeAbsolutePath(expanded);
+	result->file_path = normalized;
 	// Optional override for file type (e.g. "ttl", "nt", "nq", "trig", "xml")
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
 	if (file_type_param != input.named_parameters.end()) {
 		result->file_type = ParseFileTypeString(file_type_param->second.GetValue<string>());
 	} else {
-		result->file_type = ITriplesBuffer::AUTO;
+		result->file_type = DetectFileTypeFromPath(result->file_path);
 	}
 	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
 	if (strict_parsing_param != input.named_parameters.end()) {
@@ -99,9 +98,6 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	} else {
 		result->expand_prefixes = false;
 	}
-	auto &fs = FileSystem::GetFileSystem(context);
-	string expanded = fs.ExpandPath(result->file_path);
-	string normalized = fs.NormalizeAbsolutePath(expanded);
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
 	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
@@ -112,20 +108,14 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
 	auto _ib = unique_ptr<ITriplesBuffer>(nullptr);
-	// Determine final FileType either from bind override or from path
-	ITriplesBuffer::FileType final_type = bind_data.file_type;
-	if (final_type == ITriplesBuffer::AUTO) {
-		final_type = DetectFileTypeFromPath(bind_data.file_path);
-	}
-
-	if (final_type == ITriplesBuffer::XML || final_type == ITriplesBuffer::RDF) {
+	if (bind_data.file_type == ITriplesBuffer::XML) {
 		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
-		                           final_type);
-	} else if (final_type == ITriplesBuffer::UNKNOWN) {
+		                           bind_data.file_type);
+	} else if (bind_data.file_type == ITriplesBuffer::UNKNOWN) {
 		throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
 	} else {
 		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
-		                            final_type);
+		                            bind_data.file_type);
 	}
 	try {
 		_ib->StartParse();
