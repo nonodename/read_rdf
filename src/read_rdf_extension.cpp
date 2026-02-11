@@ -19,7 +19,7 @@ using namespace std;
 
 namespace duckdb {
 
-static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s){
+static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
 	std::string x = s;
 	for (auto &c : x)
 		c = (char)tolower(c);
@@ -46,7 +46,7 @@ static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) 
 
 static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
 	ITriplesBuffer::FileType ft = ConvertLabelToFileType(s);
-	if (ft == ITriplesBuffer::UNKNOWN) 
+	if (ft == ITriplesBuffer::UNKNOWN)
 		throw std::runtime_error("Unknown file_type override: '" + s + "'");
 	return ft;
 }
@@ -102,20 +102,20 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
 	auto _ib = unique_ptr<ITriplesBuffer>(nullptr);
-	switch(bind_data.file_type) {
-		case ITriplesBuffer::TURTLE:
-		case ITriplesBuffer::NQUADS:
-		case ITriplesBuffer::NTRIPLES:
-		case ITriplesBuffer::TRIG:
-			_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
-			                            bind_data.file_type);
-			break;
-		case ITriplesBuffer::XML:
-			_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
-			                           bind_data.file_type);
-			break;
-		default:
-			throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
+	switch (bind_data.file_type) {
+	case ITriplesBuffer::TURTLE:
+	case ITriplesBuffer::NQUADS:
+	case ITriplesBuffer::NTRIPLES:
+	case ITriplesBuffer::TRIG:
+		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
+		                            bind_data.file_type);
+		break;
+	case ITriplesBuffer::XML:
+		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
+		                           bind_data.file_type);
+		break;
+	default:
+		throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
 	}
 	try {
 		_ib->StartParse();
