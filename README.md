@@ -85,6 +85,15 @@ The optional parameter `strict_parsing`, defaults to true and exposes the underl
 
 The optional parameter `prefix_expansion` defaults to false and exposes the underlying serd `serd_env_expand_node` function to expand [CURIE](https://en.wikipedia.org/wiki/CURIE) form URIs to fully defined URIs. This is applied to all columns and is ignored when parsing ntriples and nquads.
 
+#### File Type override
+
+The optional parameter `file_type` can be used to override the detected file type of the file. The following values are recognized:
+ * Turtle: `ttl`, `turtle`
+ * NQuads: `nq`, `nquads`
+ * NTriples: `nt`, `ntriples`
+ * Trig: `trig`
+ * RDF/XML `rdf`, `xml`
+
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
 ```sh
@@ -138,7 +147,6 @@ If you'd like to see this listed as a community extension, please file an issue 
 
 Potential future enhancements are 
 * support file globbing (e.g. a directory of RDF files)
-* override file extension mapping
 
 ## Reporting bugs
 

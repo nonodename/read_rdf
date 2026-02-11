@@ -15,22 +15,45 @@ using namespace std;
 
 #define STRICT_PARSING   "strict_parsing"
 #define PREFIX_EXPANSION "prefix_expansion"
+#define FILE_TYPE        "file_type"
 
 namespace duckdb {
 
-static bool isRDFXML(const std::string &path) {
+static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
+	std::string x = s;
+	for (auto &c : x)
+		c = (char)tolower(c);
+	if (x == "ttl" || x == "turtle")
+		return ITriplesBuffer::TURTLE;
+	if (x == "nq" || x == "nquads")
+		return ITriplesBuffer::NQUADS;
+	if (x == "nt" || x == "ntriples")
+		return ITriplesBuffer::NTRIPLES;
+	if (x == "trig")
+		return ITriplesBuffer::TRIG;
+	if (x == "rdf" || x == "xml")
+		return ITriplesBuffer::XML;
+	return ITriplesBuffer::UNKNOWN;
+}
+
+static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
 	auto pos = path.rfind('.');
 	if (pos == std::string::npos)
-		return false;
+		return ITriplesBuffer::UNKNOWN;
 	std::string ext = path.substr(pos + 1);
-	for (auto &c : ext)
-		c = (char)tolower(c);
-	return (ext == "rdf" || ext == "xml");
+	return ConvertLabelToFileType(ext);
+}
+
+static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
+	ITriplesBuffer::FileType ft = ConvertLabelToFileType(s);
+	if (ft == ITriplesBuffer::UNKNOWN)
+		throw std::runtime_error("Unknown file_type override: '" + s + "'");
+	return ft;
 }
 
 struct RDFReaderBindData : public TableFunctionData {
 	string file_path;
-	string file_type;
+	ITriplesBuffer::FileType file_type = ITriplesBuffer::TURTLE;
 	string baseURI;
 	bool strict_parsing = true;
 	bool expand_prefixes = false;
@@ -45,10 +68,18 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	auto result = make_uniq<RDFReaderBindData>();
 	// TODO
 	// Check input count
-	// Permit caller to override file type, baseURI etc.
 	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
-	// Permit caller to expand prefixed values
-	result->file_path = input.inputs[0].GetValue<string>();
+	auto &fs = FileSystem::GetFileSystem(context);
+	string expanded = fs.ExpandPath(input.inputs[0].GetValue<string>());
+	string normalized = fs.NormalizeAbsolutePath(expanded);
+	result->file_path = normalized;
+	// Optional override for file type (e.g. "ttl", "nt", "nq", "trig", "xml")
+	auto file_type_param = input.named_parameters.find(FILE_TYPE);
+	if (file_type_param != input.named_parameters.end()) {
+		result->file_type = ParseFileTypeString(file_type_param->second.GetValue<string>());
+	} else {
+		result->file_type = DetectFileTypeFromPath(result->file_path);
+	}
 	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
 	if (strict_parsing_param != input.named_parameters.end()) {
 		result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
@@ -61,9 +92,6 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	} else {
 		result->expand_prefixes = false;
 	}
-	auto &fs = FileSystem::GetFileSystem(context);
-	string expanded = fs.ExpandPath(result->file_path);
-	string normalized = fs.NormalizeAbsolutePath(expanded);
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
 	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
@@ -74,10 +102,20 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderLocalState>();
 	auto _ib = unique_ptr<ITriplesBuffer>(nullptr);
-	if (isRDFXML(bind_data.file_path)) {
-		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes);
-	} else {
-		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes);
+	switch (bind_data.file_type) {
+	case ITriplesBuffer::TURTLE:
+	case ITriplesBuffer::NQUADS:
+	case ITriplesBuffer::NTRIPLES:
+	case ITriplesBuffer::TRIG:
+		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
+		                            bind_data.file_type);
+		break;
+	case ITriplesBuffer::XML:
+		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", bind_data.strict_parsing, bind_data.expand_prefixes,
+		                           bind_data.file_type);
+		break;
+	default:
+		throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
 	}
 	try {
 		_ib->StartParse();
@@ -100,6 +138,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
 	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
+	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
 	loader.RegisterFunction(tf);
 }
 

@@ -14,7 +14,7 @@ using namespace std;
 class SerdBuffer : public ITriplesBuffer {
 public:
 	SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing = true,
-	           const bool expand_prefixes = false);
+	           const bool expand_prefixes = false, ITriplesBuffer::FileType file_type = ITriplesBuffer::UNKNOWN);
 
 	~SerdBuffer();
 

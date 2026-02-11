@@ -2,7 +2,8 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 
-XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes)
+XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes,
+                     const ITriplesBuffer::FileType file_type)
     : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
       _parser([this](const RdfStatement &s) { this->statementCallback(s); },
               [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
@@ -81,5 +82,5 @@ void XMLBuffer::namespaceCallback(const std::string &prefix, const std::string &
 	_parser.addNameSpace(prefix, uri);
 }
 void XMLBuffer::errorCallback(const std::string &msg) {
-	std::cerr << "![ERR] " << msg << std::endl;
+	throw duckdb::SyntaxException("Error: " + msg);
 }

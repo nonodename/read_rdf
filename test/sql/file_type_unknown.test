@@ -1,0 +1,10 @@
+# name: test/sql/file_type_unknown.test
+# description: error on unknown file_type override
+# group: [sql]
+
+require read_rdf
+
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'bogus');
+----
+Invalid Error: Unknown file_type override: 'bogus'
