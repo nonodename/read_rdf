@@ -108,12 +108,12 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	case ITriplesBuffer::NQUADS:
 	case ITriplesBuffer::NTRIPLES:
 	case ITriplesBuffer::TRIG:
-		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", &fs, bind_data.strict_parsing,
-					    bind_data.expand_prefixes, bind_data.file_type);
+		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", &fs, bind_data.strict_parsing, bind_data.expand_prefixes,
+		                            bind_data.file_type);
 		break;
 	case ITriplesBuffer::XML:
-		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", &fs, bind_data.strict_parsing,
-					   bind_data.expand_prefixes, bind_data.file_type);
+		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", &fs, bind_data.strict_parsing, bind_data.expand_prefixes,
+		                           bind_data.file_type);
 		break;
 	default:
 		throw std::runtime_error("Unknown file type for: " + bind_data.file_path);

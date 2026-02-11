@@ -3,11 +3,11 @@
 #include "duckdb/common/helper.hpp"
 
 XMLBuffer::XMLBuffer(std::string path, std::string base_uri, duckdb::FileSystem *fs, const bool strict_parsing,
-					 const bool expand_prefixes, const ITriplesBuffer::FileType file_type)
-	: ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
-	  _parser([this](const RdfStatement &s) { this->statementCallback(s); },
-			  [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
-			  [this](const std::string &msg) { this->errorCallback(msg); }, base_uri) {
+                     const bool expand_prefixes, const ITriplesBuffer::FileType file_type)
+    : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
+      _parser([this](const RdfStatement &s) { this->statementCallback(s); },
+              [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
+              [this](const std::string &msg) { this->errorCallback(msg); }, base_uri) {
 
 	if (!fs) {
 		throw std::runtime_error("XMLBuffer requires a valid DuckDB FileSystem pointer");

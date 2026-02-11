@@ -24,7 +24,7 @@ public:
 
 	ITriplesBuffer(std::string path, std::string base_uri, bool strict_parsing = true,
 	               const bool expand_prefixes = false)
-		: _base_uri(std::move(base_uri)), _file_path(std::move(path)) {};
+	    : _base_uri(std::move(base_uri)), _file_path(std::move(path)) {};
 
 	virtual void PopulateChunk(duckdb::DataChunk &output) = 0;
 	virtual void StartParse() = 0;
