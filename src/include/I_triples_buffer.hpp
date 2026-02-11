@@ -2,6 +2,7 @@
 #ifndef I_TRIPLES_BUFFER_H
 #define I_TRIPLES_BUFFER_H
 #include "duckdb.hpp"
+#include "duckdb/common/file_system.hpp"
 #include <queue>
 
 /*
@@ -23,14 +24,16 @@ public:
 
 	ITriplesBuffer(std::string path, std::string base_uri, bool strict_parsing = true,
 	               const bool expand_prefixes = false)
-	    : _file(nullptr, &fclose), _base_uri(std::move(base_uri)), _file_path(std::move(path)) {};
+		: _base_uri(std::move(base_uri)), _file_path(std::move(path)) {};
 
 	virtual void PopulateChunk(duckdb::DataChunk &output) = 0;
 	virtual void StartParse() = 0;
 	virtual ~ITriplesBuffer() = default;
 
 protected:
-	std::unique_ptr<FILE, decltype(&fclose)> _file;
+	// Use DuckDB FileSystem and FileHandle for reading files (allows remote filesystems)
+	duckdb::FileSystem *_fs = nullptr;
+	std::unique_ptr<duckdb::FileHandle> _file_handle;
 	std::string _base_uri;
 	std::string _file_path;
 
