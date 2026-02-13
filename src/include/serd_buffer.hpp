@@ -3,6 +3,7 @@
 
 #include <string>
 #include "duckdb.hpp"
+#include "duckdb/common/file_system.hpp"
 #include <serd/serd.h>
 #include "I_triples_buffer.hpp"
 #include <memory>
@@ -13,8 +14,9 @@ using namespace std;
 */
 class SerdBuffer : public ITriplesBuffer {
 public:
-	SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing = true,
-	           const bool expand_prefixes = false, ITriplesBuffer::FileType file_type = ITriplesBuffer::UNKNOWN);
+	SerdBuffer(std::string path, std::string base_uri, duckdb::FileSystem *fs = nullptr,
+	           const bool strict_parsing = true, const bool expand_prefixes = false,
+	           ITriplesBuffer::FileType file_type = ITriplesBuffer::UNKNOWN);
 
 	~SerdBuffer();
 

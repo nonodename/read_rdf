@@ -2,19 +2,23 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 
-XMLBuffer::XMLBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes,
-                     const ITriplesBuffer::FileType file_type)
+XMLBuffer::XMLBuffer(std::string path, std::string base_uri, duckdb::FileSystem *fs, const bool strict_parsing,
+                     const bool expand_prefixes, const ITriplesBuffer::FileType file_type)
     : ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes),
       _parser([this](const RdfStatement &s) { this->statementCallback(s); },
               [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
               [this](const std::string &msg) { this->errorCallback(msg); }, base_uri) {
 
-	FILE *_f = std::fopen(_file_path.c_str(), "rb");
-	if (!_f) {
-		throw std::runtime_error("Could not open RDF file: " + _file_path);
+	if (!fs) {
+		throw std::runtime_error("XMLBuffer requires a valid DuckDB FileSystem pointer");
+	}
+	this->_fs = fs;
+	try {
+		this->_file_handle = this->_fs->OpenFile(this->_file_path, duckdb::FileFlags::FILE_FLAGS_READ);
+	} catch (std::exception &ex) {
+		throw std::runtime_error("Could not open RDF file: " + this->_file_path + ": " + ex.what());
 	}
 	_parser.setBlankNodePrefix("genid");
-	_file.reset(_f);
 }
 XMLBuffer::~XMLBuffer() {
 }
@@ -37,9 +41,12 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 
 	char buffer[PARSING_CHUNK_SIZE];
 	while (_current_count < STANDARD_VECTOR_SIZE && !_eof) {
-		int res = fread(buffer, 1, PARSING_CHUNK_SIZE, _file.get());
-		_eof = feof(_file.get());
-		_parser.parseChunk(buffer, res, _eof);
+		// Read up to PARSING_CHUNK_SIZE bytes via DuckDB FileHandle
+		int64_t res = _file_handle->Read(buffer, PARSING_CHUNK_SIZE);
+		if (res < PARSING_CHUNK_SIZE) {
+			_eof = true;
+		}
+		_parser.parseChunk(buffer, (int)res, _eof);
 	}
 	output.SetCardinality(_current_count);
 	_current_chunk = nullptr;

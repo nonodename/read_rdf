@@ -5,19 +5,37 @@
 #include <stdexcept>
 #include <memory>
 
+static SerdSyntax MapSyntaxFromFileType(ITriplesBuffer::FileType file_type) {
+	switch (file_type) {
+	case ITriplesBuffer::TURTLE:
+		return SERD_TURTLE;
+	case ITriplesBuffer::NQUADS:
+		return SERD_NQUADS;
+	case ITriplesBuffer::NTRIPLES:
+		return SERD_NTRIPLES;
+	case ITriplesBuffer::TRIG:
+		return SERD_TRIG;
+	default:
+		throw std::runtime_error("Cannot detect SerdSyntax from unknown file type");
+	}
+}
 /*
     SerdBuffer constructor. Using managed pointers for the SERD calls
 */
-SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict_parsing, const bool expand_prefixes,
-                       const ITriplesBuffer::FileType file_type)
+SerdBuffer::SerdBuffer(std::string path, std::string base_uri, duckdb::FileSystem *fs, const bool strict_parsing,
+                       const bool expand_prefixes, const ITriplesBuffer::FileType file_type)
     : _reader(nullptr, &serd_reader_free), _env(nullptr, &serd_env_free),
       ITriplesBuffer(path, base_uri, strict_parsing, expand_prefixes) {
-	// Use "rb" instead of "rbe" - the "e" flag (O_CLOEXEC) is GNU-only and breaks Windows
-	FILE *_f = std::fopen(_file_path.c_str(), "rb");
-	if (!_f) {
-		throw std::runtime_error("Could not open RDF file: " + _file_path);
+	if (!fs) {
+		throw std::runtime_error("SerdBuffer requires a valid DuckDB FileSystem pointer");
 	}
-	_file.reset(_f);
+	// Assign base class FileSystem pointer and open via FileSystem to allow remote filesystems
+	this->_fs = fs;
+	try {
+		this->_file_handle = this->_fs->OpenFile(this->_file_path, duckdb::FileFlags::FILE_FLAGS_READ);
+	} catch (std::exception &ex) {
+		throw std::runtime_error("Could not open RDF file: " + this->_file_path + ": " + ex.what());
+	}
 	SerdNode base = SERD_NODE_NULL;
 	if (!base_uri.empty()) {
 		base = serd_node_from_string(SERD_URI, (const uint8_t *)base_uri.c_str());
@@ -28,27 +46,8 @@ SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict
 	}
 	_env.reset(t_env);
 	_strict_parsing = strict_parsing;
-	SerdSyntax syntax;
-	switch (file_type) {
-	case ITriplesBuffer::TURTLE:
-		syntax = SERD_TURTLE;
-		break;
-	case ITriplesBuffer::NQUADS:
-		syntax = SERD_NQUADS;
-		break;
-	case ITriplesBuffer::NTRIPLES:
-		syntax = SERD_NTRIPLES;
-		break;
-	case ITriplesBuffer::TRIG:
-		syntax = SERD_TRIG;
-		break;
-	// XML/RDF shouldn't be handled by SerdBuffer; throw to indicate misuse
-	// Auto should have been handled by caller
-	case ITriplesBuffer::XML:
-	case ITriplesBuffer::UNKNOWN:
-	default:
-		throw std::runtime_error("SerdBuffer cannot parse XML/RDF or unknown file types");
-	}
+	SerdSyntax syntax = MapSyntaxFromFileType(file_type);
+
 	if (syntax != SERD_NQUADS && syntax != SERD_NTRIPLES) {
 		_expand_prefixes = expand_prefixes;
 	} else { // Prefixes don't make sense in triple/quad formats
@@ -58,7 +57,7 @@ SerdBuffer::SerdBuffer(std::string path, std::string base_uri, const bool strict
 	SerdReader *t_reader =
 	    serd_reader_new(syntax, this, nullptr, &BaseCallback, &PrefixCallback, &StatementCallback, nullptr);
 	if (!t_reader) {
-		throw std::runtime_error("serd_reader_new failed");
+		throw std::runtime_error("Unable to create a serd reader for parsing");
 	}
 	serd_reader_set_strict(t_reader, strict_parsing);
 	serd_reader_set_error_sink(t_reader, &ErrorCallBack, this);
@@ -71,17 +70,30 @@ SerdBuffer::~SerdBuffer() {
 	serd_reader_free(_reader.release());
 	if (_env.get())
 		serd_env_free(_env.release());
-	if (_file.get())
-		std::fclose(_file.release());
+	_file_handle.reset();
 }
 
 /*
     Start parsing the RDF file. Only needs to be called once.
 */
 void SerdBuffer::StartParse() {
-	const char *fp;
-	fp = _file_path.c_str();
-	serd_reader_start_stream(_reader.get(), _file.get(), (uint8_t *)fp, false);
+	const char *fp = _file_path.c_str();
+
+	// Bridge from SerdSource to DuckDB FileHandle
+	auto duckdb_source = [](void *buf, size_t size, size_t nmemb, void *stream) -> size_t {
+		// stream is a duckdb::FileHandle*
+		auto fh = static_cast<duckdb::FileHandle *>(stream);
+		if (!fh)
+			return 0;
+		int64_t read = fh->Read(buf, (idx_t)nmemb);
+		return (size_t)std::max<int64_t>(read, 0);
+	};
+	auto duckdb_error = [](void * /*stream*/) -> int {
+		return 0;
+	};
+
+	serd_reader_start_source_stream(_reader.get(), (SerdSource)duckdb_source, (SerdStreamErrorFunc)duckdb_error,
+	                                _file_handle.get(), (uint8_t *)fp, 4096U);
 }
 
 void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node) {
@@ -133,13 +145,24 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 
 		case SERD_FAILURE:
 			serd_reader_end_stream(_reader.get());
-			if (std::feof(_file.get())) {
-				_eof = true;
-			} else {
+			// Determine EOF by comparing file position to file size
+			try {
+				idx_t pos = _file_handle->SeekPosition();
+				int64_t sz = _fs->GetFileSize(*_file_handle);
+				if (sz >= 0 && pos >= (idx_t)sz) {
+					_eof = true;
+				} else {
+					if (_has_error) {
+						throw duckdb::SyntaxException(_error_message);
+					} else {
+						throw std::runtime_error("SERD failure");
+					}
+				}
+			} catch (std::exception &ex) {
 				if (_has_error) {
 					throw duckdb::SyntaxException(_error_message);
 				} else {
-					throw std::runtime_error("SERD failure");
+					throw std::runtime_error(std::string("SERD failure: ") + ex.what());
 				}
 			}
 			break;
