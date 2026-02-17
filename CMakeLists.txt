@@ -29,6 +29,7 @@ add_library(${SERD_NAME} STATIC
     serd/src/env.c
     serd/src/n3.c
     serd/src/node.c
+    serd/src/read_utf8.c
     serd/src/reader.c
     serd/src/string.c
     serd/src/system.c
