@@ -57,7 +57,7 @@ The main binaries that will be built are:
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. The template contains a single table function `read_rdf()` that takes a single string argument (the name of the RDF file) and returns a table:
+Now we can use the features from the extension directly in DuckDB. `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
 ```
 D select subject, predicate from read_rdf('test/rdf/tests.nt');
 ┌───────────────────────────────────┬─────────────────────────────────────────────────┐
@@ -93,6 +93,22 @@ The optional parameter `file_type` can be used to override the detected file typ
  * NTriples: `nt`, `ntriples`
  * Trig: `trig`
  * RDF/XML `rdf`, `xml`
+
+When using a glob pattern the `file_type` override is applied uniformly to every matched file.
+
+### Glob / multiple files
+
+The path argument accepts glob patterns, allowing multiple RDF files to be read in a single call. All matched files are scanned in parallel and their triples are combined into one result set:
+
+```sql
+-- Read all NTriples files in a directory
+SELECT COUNT(*) FROM read_rdf('data/shards/*.nt');
+
+-- Mix with other parameters — file_type applies to every matched file
+SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = false);
+```
+
+If the pattern matches no files an `IO Error` is raised.
 
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
@@ -142,11 +158,6 @@ LOAD read_rdf
 ```
 
 If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.
-
-## Future enhancements
-
-Potential future enhancements are 
-* support file globbing (e.g. a directory of RDF files)
 
 ## Reporting bugs
 

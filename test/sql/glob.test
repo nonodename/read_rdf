@@ -1,0 +1,52 @@
+# name: test/sql/glob.test
+# description: test file glob support in read_rdf extension
+# group: [sql]
+
+require read_rdf
+
+# A pattern that matches nothing should raise a clear error
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/no_such_file*.nt');
+----
+IO Error: No files found matching: test/rdf/shards/no_such_file*.nt
+
+# An exact path that does not exist should also raise the same error
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/does_not_exist.nt');
+----
+IO Error: No files found matching: test/rdf/shards/does_not_exist.nt
+
+# Exact path still works — glob returns the single file unchanged (regression)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt');
+----
+3
+
+# Glob pattern matching a single shard
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt');
+----
+3
+
+# Glob pattern matching both shards — rows from all files are combined (3 + 2 = 5)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt');
+----
+5
+
+# Verify specific triples are present from each shard
+query TT
+SELECT subject, object FROM read_rdf('test/rdf/shards/*.nt') ORDER BY subject;
+----
+http://example.org/s1	http://example.org/o1
+http://example.org/s2	http://example.org/o2
+http://example.org/s3	http://example.org/o3
+http://example.org/s4	http://example.org/o4
+http://example.org/s5	http://example.org/o5
+
+# file_type override is applied uniformly to all glob-matched files
+# shard_a and shard_b have .nt extensions, but we can force the parser explicitly
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', file_type = 'ntriples');
+----
+5
