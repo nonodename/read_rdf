@@ -11,6 +11,8 @@
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 
+#include <mutex>
+
 using namespace std;
 
 #define STRICT_PARSING   "strict_parsing"
@@ -51,14 +53,27 @@ static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
 	return ft;
 }
 
+// Bind data: holds the expanded list of files (supports glob patterns)
 struct RDFReaderBindData : public TableFunctionData {
-	string file_path;
-	ITriplesBuffer::FileType file_type = ITriplesBuffer::TURTLE;
-	string baseURI;
+	vector<string> file_paths;
+	// UNKNOWN means detect per-file from extension; set explicitly if file_type param given
+	ITriplesBuffer::FileType file_type = ITriplesBuffer::UNKNOWN;
 	bool strict_parsing = true;
 	bool expand_prefixes = false;
 };
 
+// Global state: shared across all threads, tracks which file to process next
+struct RDFReaderGlobalState : public GlobalTableFunctionState {
+	std::mutex lock;
+	idx_t next_file = 0;
+	idx_t file_count = 0;
+
+	idx_t MaxThreads() const override {
+		return file_count;
+	}
+};
+
+// Local state: holds the active parser for this thread's current file
 struct RDFReaderLocalState : public LocalTableFunctionState {
 	std::unique_ptr<ITriplesBuffer> ib;
 };
@@ -66,77 +81,122 @@ struct RDFReaderLocalState : public LocalTableFunctionState {
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
-	// TODO
-	// Check input count
-	// Permit caller to pass in multiple files (e.g. for sharded RDF data)
 	auto &fs = FileSystem::GetFileSystem(context);
-	string expanded = fs.ExpandPath(input.inputs[0].GetValue<string>());
-	string normalized = fs.NormalizeAbsolutePath(expanded);
-	result->file_path = normalized;
-	// Optional override for file type (e.g. "ttl", "nt", "nq", "trig", "xml")
+
+	// Expand the input (which may be a glob pattern) to a concrete list of files
+	string pattern = input.inputs[0].GetValue<string>();
+	auto files = fs.Glob(pattern);
+	if (files.empty()) {
+		throw IOException("No files found matching: " + pattern);
+	}
+	result->file_paths = std::move(files);
+
+	// Optional explicit file type override — applied to all matched files
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
 	if (file_type_param != input.named_parameters.end()) {
 		result->file_type = ParseFileTypeString(file_type_param->second.GetValue<string>());
 	} else {
-		result->file_type = DetectFileTypeFromPath(result->file_path);
+		result->file_type = ITriplesBuffer::UNKNOWN; // detect per-file from extension
 	}
+
 	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
 	if (strict_parsing_param != input.named_parameters.end()) {
 		result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
 	} else {
 		result->strict_parsing = true;
 	}
+
 	auto prefix_expansion_param = input.named_parameters.find(PREFIX_EXPANSION);
 	if (prefix_expansion_param != input.named_parameters.end()) {
 		result->expand_prefixes = prefix_expansion_param->second.GetValue<bool>();
 	} else {
 		result->expand_prefixes = false;
 	}
+
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
 	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
 	return std::move(result);
 }
+
+// Creates the shared global state; called once before any threads start scanning
+static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &context,
+                                                                TableFunctionInitInput &input) {
+	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
+	auto state = make_uniq<RDFReaderGlobalState>();
+	state->file_count = bind_data.file_paths.size();
+	return state;
+}
+
+// Creates thread-local state; file opening is deferred to RDFReaderFunc
 static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &context, TableFunctionInitInput &input,
                                                          GlobalTableFunctionState *global_state) {
-	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
-	auto state = make_uniq<RDFReaderLocalState>();
-	auto _ib = unique_ptr<ITriplesBuffer>(nullptr);
-	auto &fs = FileSystem::GetFileSystem(context.client);
-	switch (bind_data.file_type) {
+	return make_uniq<RDFReaderLocalState>();
+}
+
+// Opens a single file and returns the appropriate parser buffer
+static unique_ptr<ITriplesBuffer> OpenFile(const string &file_path, ITriplesBuffer::FileType ft, FileSystem &fs,
+                                           bool strict_parsing, bool expand_prefixes) {
+	if (ft == ITriplesBuffer::UNKNOWN) {
+		ft = DetectFileTypeFromPath(file_path);
+	}
+	switch (ft) {
 	case ITriplesBuffer::TURTLE:
 	case ITriplesBuffer::NQUADS:
 	case ITriplesBuffer::NTRIPLES:
 	case ITriplesBuffer::TRIG:
-		_ib = make_uniq<SerdBuffer>(bind_data.file_path, "", &fs, bind_data.strict_parsing, bind_data.expand_prefixes,
-		                            bind_data.file_type);
-		break;
+		return make_uniq<SerdBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
 	case ITriplesBuffer::XML:
-		_ib = make_uniq<XMLBuffer>(bind_data.file_path, "", &fs, bind_data.strict_parsing, bind_data.expand_prefixes,
-		                           bind_data.file_type);
-		break;
+		return make_uniq<XMLBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
 	default:
-		throw std::runtime_error("Unknown file type for: " + bind_data.file_path);
+		throw IOException("Cannot determine file type for: " + file_path);
 	}
-	try {
-		_ib->StartParse();
-	} catch (const std::runtime_error &re) {
-		cerr << "Exception in RDFReaderInit: " << re.what() << "\n";
-		throw IOException(re.what());
-	}
-	state->ib = std::move(_ib);
-	return state;
 }
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
 	auto &state = (RDFReaderLocalState &)*input.local_state;
-	// Delegate the filling entirely to the buffer
-	state.ib->PopulateChunk(output);
+	auto &global_state = (RDFReaderGlobalState &)*input.global_state;
+	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
+	auto &fs = FileSystem::GetFileSystem(context);
+
+	while (true) {
+		// If we have an active buffer, try to get more rows from it
+		if (state.ib) {
+			state.ib->PopulateChunk(output);
+			if (output.size() > 0) {
+				return;
+			}
+			// Buffer exhausted — drop it and claim the next file
+			state.ib.reset();
+		}
+
+		// Atomically claim the next file index
+		idx_t file_idx;
+		{
+			std::lock_guard<std::mutex> lk(global_state.lock);
+			if (global_state.next_file >= global_state.file_count) {
+				return; // no more files; empty output signals done to DuckDB
+			}
+			file_idx = global_state.next_file++;
+		}
+
+		// Open and start parsing the claimed file
+		const string &file_path = bind_data.file_paths[file_idx];
+		try {
+			auto new_ib = OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
+			                       bind_data.expand_prefixes);
+			new_ib->StartParse();
+			state.ib = std::move(new_ib);
+		} catch (const std::runtime_error &re) {
+			throw IOException(re.what());
+		}
+	}
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
-	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, nullptr, RDFReaderInit);
+	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, RDFReaderGlobalInit,
+	                 RDFReaderInit);
 	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
