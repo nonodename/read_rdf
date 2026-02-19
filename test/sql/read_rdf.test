@@ -11,11 +11,11 @@ Catalog Error: Table Function with name read_rdf does not exist!
 # Require statement will ensure this test is run with this extension loaded
 require read_rdf
 
-# Confirm the extension loads but doesn't read bad files 
+# Confirm the extension loads but gives a clear error for non-matching paths
 statement error
 SELECT * from read_rdf('not_exist.nt');
 ----
-Invalid Error: Could not open RDF file: not_exist.nt
+IO Error: No files found matching: not_exist.nt
 
 # Load the RDF file and check triple count
 query I
