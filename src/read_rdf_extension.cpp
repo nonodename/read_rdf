@@ -85,11 +85,13 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 
 	// Expand the input (which may be a glob pattern) to a concrete list of files
 	string pattern = input.inputs[0].GetValue<string>();
-	auto files = fs.Glob(pattern);
-	if (files.empty()) {
+	auto glob_results = fs.Glob(pattern);
+	if (glob_results.empty()) {
 		throw IOException("No files found matching: " + pattern);
 	}
-	result->file_paths = std::move(files);
+	for (auto &info : glob_results) {
+		result->file_paths.push_back(std::move(info.path));
+	}
 
 	// Optional explicit file type override — applied to all matched files
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
