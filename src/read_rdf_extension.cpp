@@ -120,8 +120,7 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 }
 
 // Creates the shared global state; called once before any threads start scanning
-static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &context,
-                                                                TableFunctionInitInput &input) {
+static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &context, TableFunctionInitInput &input) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderGlobalState>();
 	state->file_count = bind_data.file_paths.size();
@@ -183,8 +182,8 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 		// Open and start parsing the claimed file
 		const string &file_path = bind_data.file_paths[file_idx];
 		try {
-			auto new_ib = OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
-			                       bind_data.expand_prefixes);
+			auto new_ib =
+			    OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing, bind_data.expand_prefixes);
 			new_ib->StartParse();
 			state.ib = std::move(new_ib);
 		} catch (const std::runtime_error &re) {
