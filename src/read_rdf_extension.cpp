@@ -10,7 +10,8 @@
 #include "duckdb/function/table_function.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
-
+#include <r2rml/R2RMLMapping.h>
+#include <r2rml/R2RMLParser.h>
 #include <mutex>
 
 using namespace std;
@@ -20,6 +21,32 @@ using namespace std;
 #define FILE_TYPE        "file_type"
 
 namespace duckdb {
+
+inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &name_vector = args.data[0];
+	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
+		auto &fs = FileSystem::GetFileSystem(state.GetContext());
+		if (!fs.FileExists(name.GetString())) {
+			return false;
+		}
+		r2rml::R2RMLParser parser;
+		r2rml::R2RMLMapping mapping = parser.parse(name.GetString());
+		return mapping.isValidInsideOut();
+	});
+}
+
+inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result) {
+	auto &name_vector = args.data[0];
+	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
+		auto &fs = FileSystem::GetFileSystem(state.GetContext());
+		if (!fs.FileExists(name.GetString())) {
+			return false;
+		}
+		r2rml::R2RMLParser parser;
+		r2rml::R2RMLMapping mapping = parser.parse(name.GetString());
+		return mapping.isValid();
+	});
+}
 
 static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
 	std::string x = s;
@@ -202,6 +229,12 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
 	loader.RegisterFunction(tf);
+	auto can_call_inside_out_scalar_function =
+	    ScalarFunction("can_call_inside_out", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, CanCallInsideOut);
+	loader.RegisterFunction(can_call_inside_out_scalar_function);
+	auto is_valid_r2rml_scalar_function =
+	    ScalarFunction("is_valid_r2rml", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, IsValidR2RML);
+	loader.RegisterFunction(is_valid_r2rml_scalar_function);
 }
 
 void ReadRdfExtension::Load(ExtensionLoader &loader) {

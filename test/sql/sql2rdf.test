@@ -1,0 +1,37 @@
+# name: test/sql/sql2rdf.test
+# description: test sql2rdf functionality
+# group: [sql]
+
+require read_rdf
+
+### Basic validation
+
+# File doesn't exist
+query T
+select is_valid_r2rml('bogus_filename that doesn''t exist');
+----
+false
+
+# File exists but is invalid 
+query T
+select is_valid_r2rml('sql2rdf/tests/sourceR2RML/invalid_turtle_unclosed_literal.ttl');
+----
+false
+
+# Valid R2RML 
+query T
+select is_valid_r2rml('sql2rdf/tests/sourceR2RML/example4.ttl');
+----
+true
+
+# Valid R2RML invalid inside out
+query T
+select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_with_rom.ttl');
+----
+false
+
+# Valid R2RML valid inside out
+query T
+select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_valid.ttl');
+----
+true
