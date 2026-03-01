@@ -113,14 +113,15 @@ target_link_libraries(${LOADABLE_EXTENSION_NAME}
         LibXml2::LibXml2
 )
 
-# Windows: force static SERD behavior (avoid dllimport)
+# Windows: force static behavior (avoid dllimport/dllexport mismatches)
 if (WIN32)
-    target_compile_definitions(${SERD_NAME} PRIVATE SERD_STATIC)
-    target_compile_definitions(${EXTENSION_NAME} PRIVATE SERD_STATIC)
-    target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE SERD_STATIC)
-    target_compile_definitions(${SQL2RDF_NAME} PRIVATE SQL2RDF_STATIC)
-    target_compile_definitions(${EXTENSION_NAME} PRIVATE SQL2RDF_STATIC)
-    target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE SQL2RDF_STATIC)
+    # By using INTERFACE/PUBLIC, any target linking to these libs 
+    # automatically gets the STATIC definition.
+    target_compile_definitions(${SERD_NAME} PUBLIC SERD_STATIC)
+    target_compile_definitions(${SQL2RDF_NAME} PUBLIC SQL2RDF_STATIC)
+    
+    # This ensures the intermediate library knows Serd is static
+    target_compile_definitions(${SQL2RDF_NAME} PRIVATE SERD_STATIC)
 endif()
 
 install(
