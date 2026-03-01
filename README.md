@@ -110,6 +110,78 @@ SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = 
 
 If the pattern matches no files an `IO Error` is raised.
 
+## _Experimental_ RDF write support
+
+The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) mapping file, DuckDB's `COPY TO` syntax and the (SQL2RDF++)[https://github.com/nonodename/sql2rdf] library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
+
+This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. I you use it, please get in touch and contribute issues using the steps below.
+
+### Inside-out mode
+
+Use this when your R2RML mapping has **no** `rr:logicalTable` declarations (i.e. `can_call_inside_out()` returns `true`). DuckDB drives the SQL query and passes each result row to the extension, which maps them to RDF triples using the mapping:
+
+```sql
+COPY (SELECT empno, ename, deptno FROM emp)
+TO 'output.nt'
+(FORMAT r2rml, mapping 'mapping.ttl');
+```
+
+Expect this mode to be as performant as single threaded output can be as it follows the idioms for copy export. 
+
+### Full R2RML mode
+
+Use this when your mapping has `rr:logicalTable` declarations that specify which tables to query. The extension ignores the SQL in the `COPY` statement and runs the mapping's own queries against the live DuckDB instance. Pass a dummy `SELECT 1` to satisfy DuckDB's `COPY` syntax:
+
+```sql
+COPY (SELECT 1) TO 'output.nt' (FORMAT r2rml, mapping 'mapping.ttl');
+```
+
+To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. 
+
+### Options
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `mapping` | Yes | — | Path to the R2RML mapping file (`.ttl`) |
+| `rdf_format` | No | `ntriples` | Output RDF serialization: `ntriples`, `turtle`, or `nquads` |
+
+### Example
+
+```sql
+-- Create some data
+CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
+
+-- Write as NTriples using an inside-out mapping
+COPY (SELECT empno, ename, deptno FROM emp)
+TO 'employees.nt'
+(FORMAT r2rml, mapping 'mapping.ttl');
+
+-- Read it back
+SELECT subject, predicate, object FROM read_rdf('employees.nt');
+```
+
+```
+┌───────────────────────────────────────┬─────────────────────────────────────────────────┬───────────────────────────────────────┐
+│ subject                               │ predicate                                       │ object                                │
+├───────────────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────┤
+│ http://data.example.com/employee/7369 │ http://example.com/ns#department                │ http://data.example.com/department/10 │
+│ http://data.example.com/employee/7369 │ http://example.com/ns#name                      │ SMITH                                 │
+│ http://data.example.com/employee/7369 │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │ http://example.com/ns#Employee        │
+└───────────────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────────────────────┘
+```
+
+### R2RML validation helpers
+
+Two scalar functions are available to validate R2RML mapping files:
+
+```sql
+-- Returns true if the file is a valid R2RML mapping
+SELECT is_valid_r2rml('mapping.ttl');
+
+-- Returns true if the mapping is valid for inside-out mode (no rr:logicalTable etc.)
+SELECT can_call_inside_out('mapping.ttl');
+```
+
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
 ```sh

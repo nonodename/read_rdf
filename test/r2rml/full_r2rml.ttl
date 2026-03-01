@@ -1,0 +1,22 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Full R2RML mapping: uses rr:logicalTable to drive the SQL query.
+# Used with COPY (SELECT 1) TO ... (FORMAT r2rml, mapping '...')
+# The extension ignores the SQL in the COPY statement and runs its own query.
+# Table name "emp" must exist in the DuckDB instance at time of COPY execution.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ENAME" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [ rr:template "http://data.example.com/department/{DEPTNO}" ] ;
+    ] .

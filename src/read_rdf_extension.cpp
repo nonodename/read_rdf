@@ -8,10 +8,19 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/function/copy_function.hpp"
+#include "duckdb/parser/parsed_data/copy_info.hpp"
+#include "duckdb/main/connection.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <r2rml/R2RMLParser.h>
+#include <r2rml/SQLConnection.h>
+#include <r2rml/SQLResultSet.h>
+#include <r2rml/SQLRow.h>
+#include <r2rml/SQLValue.h>
+#include <r2rml/TriplesMap.h>
+#include <map>
 #include <mutex>
 
 using namespace std;
@@ -221,6 +230,303 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 	}
 }
 
+// ============================================================
+// Write RDF: COPY ... TO ... (FORMAT r2rml, mapping '...')
+// ============================================================
+
+#define MAPPING_OPTION    "mapping"
+#define RDF_FORMAT_OPTION "rdf_format"
+
+// Convert a DuckDB Value to an r2rml::SQLValue (mirrors DuckDBConnection.cpp).
+static r2rml::SQLValue duckValueToSQLValue(const Value &val) {
+	if (val.IsNull()) {
+		return r2rml::SQLValue();
+	}
+	switch (val.type().id()) {
+	case LogicalTypeId::BOOLEAN:
+		return r2rml::SQLValue(val.GetValue<bool>());
+	case LogicalTypeId::TINYINT:
+	case LogicalTypeId::SMALLINT:
+	case LogicalTypeId::INTEGER:
+	case LogicalTypeId::UTINYINT:
+	case LogicalTypeId::USMALLINT:
+	case LogicalTypeId::UINTEGER:
+		return r2rml::SQLValue(val.GetValue<int32_t>());
+	case LogicalTypeId::BIGINT:
+	case LogicalTypeId::UBIGINT:
+	case LogicalTypeId::HUGEINT:
+		return r2rml::SQLValue(val.ToString());
+	case LogicalTypeId::FLOAT:
+		return r2rml::SQLValue(static_cast<double>(val.GetValue<float>()));
+	case LogicalTypeId::DOUBLE:
+		return r2rml::SQLValue(val.GetValue<double>());
+	case LogicalTypeId::VARCHAR:
+	case LogicalTypeId::BLOB:
+		return r2rml::SQLValue(val.GetValue<std::string>());
+	default:
+		return r2rml::SQLValue(val.ToString());
+	}
+}
+
+// Materialised result set: holds all rows fetched from a DuckDB query.
+class VectorSQLResultSet : public r2rml::SQLResultSet {
+public:
+	explicit VectorSQLResultSet(std::vector<r2rml::SQLRow> rows) : rows_(std::move(rows)) {
+	}
+	bool next() override {
+		return ++cursor_ < static_cast<int>(rows_.size());
+	}
+	r2rml::SQLRow getCurrentRow() const override {
+		return rows_[static_cast<size_t>(cursor_)];
+	}
+
+private:
+	std::vector<r2rml::SQLRow> rows_;
+	int cursor_ = -1;
+};
+
+// SQLConnection backed by the live DuckDB instance via a fresh Connection.
+// Used for full R2RML mode where processDatabase() runs the mapping's SQL queries.
+class ClientContextSQLConnection : public r2rml::SQLConnection {
+public:
+	explicit ClientContextSQLConnection(ClientContext &ctx) : context_(ctx) {
+	}
+
+	std::unique_ptr<r2rml::SQLResultSet> execute(const std::string &sql) override {
+		Connection conn(*context_.db);
+		auto result = conn.Query(sql);
+		if (result->HasError()) {
+			throw std::runtime_error("R2RML query error: " + result->GetError());
+		}
+		std::vector<r2rml::SQLRow> rows;
+		while (true) {
+			auto chunk = result->Fetch();
+			if (!chunk || chunk->size() == 0) {
+				break;
+			}
+			for (idx_t r = 0; r < chunk->size(); r++) {
+				std::map<std::string, r2rml::SQLValue> cols;
+				for (idx_t c = 0; c < chunk->ColumnCount(); c++) {
+					std::string name = result->ColumnName(c);
+					for (auto &ch : name) {
+						ch = (char)toupper(ch);
+					}
+					cols[name] = duckValueToSQLValue(chunk->GetValue(c, r));
+				}
+				rows.emplace_back(std::move(cols));
+			}
+		}
+		return unique_ptr<r2rml::SQLResultSet>(new VectorSQLResultSet(std::move(rows)));
+	}
+
+	std::string getDefaultSchema() override {
+		return "main";
+	}
+
+private:
+	ClientContext &context_;
+};
+
+// Stub connection for inside-out mode.  isValidInsideOut() guarantees that no
+// referencing object maps are present, so execute() should never be called.
+struct NullSQLConnection : public r2rml::SQLConnection {
+	std::unique_ptr<r2rml::SQLResultSet> execute(const std::string &) override {
+		throw InternalException("SQL queries are not supported in inside-out R2RML mode");
+	}
+};
+
+// Serd write sink: streams output sequentially to a DuckDB FileHandle.
+static size_t serdFileHandleSink(const void *buf, size_t len, void *stream) {
+	static_cast<FileHandle *>(stream)->Write(const_cast<void *>(buf), static_cast<idx_t>(len));
+	return len;
+}
+
+static SerdSyntax ParseRdfFormat(const std::string &fmt) {
+	std::string f = fmt;
+	for (auto &c : f) {
+		c = (char)tolower(c);
+	}
+	if (f == "ntriples" || f == "nt") {
+		return SERD_NTRIPLES;
+	}
+	if (f == "turtle" || f == "ttl") {
+		return SERD_TURTLE;
+	}
+	if (f == "nquads" || f == "nq") {
+		return SERD_NQUADS;
+	}
+	throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
+}
+
+struct R2RMLWriteBindData : public FunctionData {
+	std::string mapping_file_path;
+	std::shared_ptr<r2rml::R2RMLMapping> mapping;
+	bool inside_out_mode = false;
+	std::vector<std::string> column_names; // uppercased; consumed by copy_to_sink
+	std::vector<LogicalType> sql_types;
+	SerdSyntax output_syntax = SERD_NTRIPLES;
+
+	unique_ptr<FunctionData> Copy() const override {
+		auto c = make_uniq<R2RMLWriteBindData>();
+		c->mapping_file_path = mapping_file_path;
+		c->mapping = mapping;
+		c->inside_out_mode = inside_out_mode;
+		c->column_names = column_names;
+		c->sql_types = sql_types;
+		c->output_syntax = output_syntax;
+		return c;
+	}
+	bool Equals(const FunctionData &other) const override {
+		return mapping_file_path == other.Cast<R2RMLWriteBindData>().mapping_file_path;
+	}
+};
+
+struct R2RMLWriteGlobalState : public GlobalFunctionData {
+	unique_ptr<FileHandle> file_handle;
+	SerdEnv *serd_env = nullptr;
+	SerdWriter *serd_writer = nullptr;
+
+	~R2RMLWriteGlobalState() {
+		if (serd_writer) {
+			serd_writer_free(serd_writer);
+			serd_writer = nullptr;
+		}
+		if (serd_env) {
+			serd_env_free(serd_env);
+			serd_env = nullptr;
+		}
+	}
+};
+
+struct R2RMLWriteLocalState : public LocalFunctionData {};
+
+static void R2RMLCopyOptions(ClientContext &, CopyOptionsInput &input) {
+	input.options[MAPPING_OPTION] = CopyOption(LogicalType::VARCHAR);
+	input.options[RDF_FORMAT_OPTION] = CopyOption(LogicalType::VARCHAR);
+}
+
+static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunctionBindInput &input,
+                                                const vector<string> &names, const vector<LogicalType> &sql_types) {
+	auto &options = input.info.options;
+
+	// mapping option is required
+	auto mapping_it = options.find(MAPPING_OPTION);
+	if (mapping_it == options.end() || mapping_it->second.empty()) {
+		throw InvalidInputException("r2rml format requires a 'mapping' option specifying the R2RML mapping file.");
+	}
+	std::string mapping_path = mapping_it->second[0].GetValue<std::string>();
+
+	auto &fs = FileSystem::GetFileSystem(context);
+	if (!fs.FileExists(mapping_path)) {
+		throw IOException("R2RML mapping file not found: " + mapping_path);
+	}
+
+	r2rml::R2RMLParser parser;
+	auto mapping = std::make_shared<r2rml::R2RMLMapping>(parser.parse(mapping_path));
+
+	bool inside_out = mapping->isValidInsideOut();
+	if (!inside_out && !mapping->isValid()) {
+		throw InvalidInputException("R2RML mapping '%s' is not valid.", mapping_path.c_str());
+	}
+
+	SerdSyntax syntax = SERD_NTRIPLES;
+	auto fmt_it = options.find(RDF_FORMAT_OPTION);
+	if (fmt_it != options.end() && !fmt_it->second.empty()) {
+		syntax = ParseRdfFormat(fmt_it->second[0].GetValue<std::string>());
+	}
+
+	auto result = make_uniq<R2RMLWriteBindData>();
+	result->mapping_file_path = mapping_path;
+	result->mapping = mapping;
+	result->inside_out_mode = inside_out;
+	result->sql_types = sql_types;
+	result->output_syntax = syntax;
+
+	for (const auto &name : names) {
+		std::string upper = name;
+		for (auto &c : upper) {
+			c = (char)toupper(c);
+		}
+		result->column_names.push_back(std::move(upper));
+	}
+
+	return std::move(result);
+}
+
+static unique_ptr<GlobalFunctionData> R2RMLCopyToInitializeGlobal(ClientContext &context, FunctionData &bind_data,
+                                                                  const string &file_path) {
+	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
+	auto state = make_uniq<R2RMLWriteGlobalState>();
+
+	auto &fs = FileSystem::GetFileSystem(context);
+	state->file_handle = fs.OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_FILE_CREATE_NEW);
+
+	state->serd_env = serd_env_new(nullptr);
+	if (!state->serd_env) {
+		throw IOException("Failed to create Serd environment for RDF output.");
+	}
+
+	state->serd_writer = serd_writer_new(bind.output_syntax, (SerdStyle)0, state->serd_env, nullptr, serdFileHandleSink,
+	                                     state->file_handle.get());
+	if (!state->serd_writer) {
+		throw IOException("Failed to create Serd writer for RDF output.");
+	}
+
+	return std::move(state);
+}
+
+static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext &, FunctionData &) {
+	return make_uniq<R2RMLWriteLocalState>();
+}
+
+static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalFunctionData &gstate,
+                            LocalFunctionData &, DataChunk &input) {
+	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
+	if (!bind.inside_out_mode) {
+		return; // full R2RML mode: rows from COPY SELECT are ignored
+	}
+
+	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
+	NullSQLConnection null_conn;
+
+	for (idx_t row = 0; row < input.size(); row++) {
+		std::map<std::string, r2rml::SQLValue> cols;
+		for (idx_t col = 0; col < input.ColumnCount(); col++) {
+			cols[bind.column_names[col]] = duckValueToSQLValue(input.GetValue(col, row));
+		}
+		r2rml::SQLRow sql_row(std::move(cols));
+		for (const auto &tm : bind.mapping->triplesMaps) {
+			if (tm) {
+				tm->generateTriples(sql_row, *global.serd_writer, *bind.mapping, null_conn);
+			}
+		}
+	}
+}
+
+static void R2RMLCopyToCombine(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
+}
+
+static void R2RMLCopyToFinalize(ClientContext &context, FunctionData &bind_data, GlobalFunctionData &gstate) {
+	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
+	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
+
+	if (!bind.inside_out_mode) {
+		// full R2RML mode: run the mapping's SQL queries against the live database
+		try {
+			ClientContextSQLConnection conn(context);
+			bind.mapping->processDatabase(conn, *global.serd_writer);
+		} catch (const std::runtime_error &e) {
+			throw IOException(std::string("R2RML processing error: ") + e.what());
+		}
+	}
+
+	serd_writer_finish(global.serd_writer);
+}
+
+static CopyFunctionExecutionMode R2RMLCopyExecutionMode(bool, bool) {
+	return CopyFunctionExecutionMode::REGULAR_COPY_TO_FILE;
+}
+
 static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
 	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, RDFReaderGlobalInit,
@@ -235,6 +541,18 @@ static void LoadInternal(ExtensionLoader &loader) {
 	auto is_valid_r2rml_scalar_function =
 	    ScalarFunction("is_valid_r2rml", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, IsValidR2RML);
 	loader.RegisterFunction(is_valid_r2rml_scalar_function);
+
+	CopyFunction copy_func("r2rml");
+	copy_func.extension = "nt";
+	copy_func.copy_options = R2RMLCopyOptions;
+	copy_func.copy_to_bind = R2RMLCopyToBind;
+	copy_func.copy_to_initialize_global = R2RMLCopyToInitializeGlobal;
+	copy_func.copy_to_initialize_local = R2RMLCopyToInitializeLocal;
+	copy_func.copy_to_sink = R2RMLCopyToSink;
+	copy_func.copy_to_combine = R2RMLCopyToCombine;
+	copy_func.copy_to_finalize = R2RMLCopyToFinalize;
+	copy_func.execution_mode = R2RMLCopyExecutionMode;
+	loader.RegisterFunction(copy_func);
 }
 
 void ReadRdfExtension::Load(ExtensionLoader &loader) {
