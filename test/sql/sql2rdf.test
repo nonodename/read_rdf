@@ -2,7 +2,7 @@
 # description: test sql2rdf functionality
 # group: [sql]
 
-require read_rdf
+require rdf
 
 ### Basic validation
 

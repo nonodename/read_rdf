@@ -1,20 +1,10 @@
-# Read_Rdf
+# A DuckDB extension to read and write RDF
 
 This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
 
 ---
 
-This extension, Read_Rdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`.
-
-Six columns are returned for RDF. Three are always not null:
-* subject
-* predicate
-* object
-
-The other three columns will be null if no value is provided in the underlying RDF file:
-* graph
-* language_tag
-* datatype
+This extension, Rdf, allow you to read & write RDF files directly in to/out of DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse/write [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`. No XML write is supported. No one needs that.
 
 ## Building
 ### Managing dependencies
@@ -48,16 +38,28 @@ The main binaries that will be built are:
 ```sh
 ./build/release/duckdb
 ./build/release/test/unittest
-./build/release/extension/read_rdf/read_rdf.duckdb_extension
+./build/release/extension/rdf/rdf.duckdb_extension
 ```
 - `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
 - `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `read_rdf.duckdb_extension` is the loadable binary as it would be distributed.
+- `rdf.duckdb_extension` is the loadable binary as it would be distributed.
 
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
+## Reading RDF
+
+Six columns are returned for RDF. Three are always not null:
+* subject
+* predicate
+* object
+
+The other three columns will be null if no value is provided in the underlying RDF file:
+* graph
+* language_tag
+* datatype
+
+ `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
 ```
 D select subject, predicate from read_rdf('test/rdf/tests.nt');
 ┌───────────────────────────────────┬─────────────────────────────────────────────────┐
@@ -114,7 +116,7 @@ If the pattern matches no files an `IO Error` is raised.
 
 The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) mapping file, DuckDB's `COPY TO` syntax and the (SQL2RDF++)[https://github.com/nonodename/sql2rdf] library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
 
-This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. I you use it, please get in touch and contribute issues using the steps below.
+This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. I you use it, please get in touch and contribute issues using the steps
 
 ### Inside-out mode
 
@@ -225,8 +227,8 @@ DuckDB. To specify a specific version, you can pass the version instead.
 
 After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
 ```sql
-INSTALL read_rdf
-LOAD read_rdf
+INSTALL rdf
+LOAD rdf
 ```
 
 If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.

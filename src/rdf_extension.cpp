@@ -1,6 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
-#include "read_rdf_extension.hpp"
+#include "rdf_extension.hpp"
 #include "duckdb.hpp"
 #include "include/serd_buffer.hpp"
 #include "include/xml_buffer.hpp"
@@ -555,16 +555,16 @@ static void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(copy_func);
 }
 
-void ReadRdfExtension::Load(ExtensionLoader &loader) {
+void RdfExtension::Load(ExtensionLoader &loader) {
 	LoadInternal(loader);
 }
-std::string ReadRdfExtension::Name() {
-	return "read_rdf";
+std::string RdfExtension::Name() {
+	return "rdf";
 }
 
-std::string ReadRdfExtension::Version() const {
-#ifdef EXT_VERSION_READ_RDF
-	return EXT_VERSION_READ_RDF;
+std::string RdfExtension::Version() const {
+#ifdef EXT_VERSION_RDF
+	return EXT_VERSION_RDF;
 #else
 	return "0.0.1-unknown";
 #endif
@@ -574,7 +574,7 @@ std::string ReadRdfExtension::Version() const {
 
 extern "C" {
 
-DUCKDB_CPP_EXTENSION_ENTRY(read_rdf, loader) {
+DUCKDB_CPP_EXTENSION_ENTRY(rdf, loader) {
 	duckdb::LoadInternal(loader);
 }
 }

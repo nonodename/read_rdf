@@ -2,7 +2,7 @@
 # description: test strict parsing in read_rdf extension
 # group: [sql]
 
-require read_rdf
+require rdf
 
 ### Parse error handling
 

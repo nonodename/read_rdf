@@ -2,7 +2,7 @@
 # description: test write RDF support via COPY ... TO ... (FORMAT r2rml)
 # group: [sql]
 
-require read_rdf
+require rdf
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 # Create a small EMP table used by both inside-out and full R2RML tests.

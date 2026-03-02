@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10...3.29)
 # ------------------------------------------------------------
 # Project setup
 # ------------------------------------------------------------
-set(TARGET_NAME read_rdf)
+set(TARGET_NAME rdf)
 set(SERD_NAME serd_lib)
 set(SQL2RDF_NAME sql2rdf_lib)
 
@@ -15,7 +15,7 @@ set(EXTENSION_NAME         ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
 set(EXTENSION_SOURCES
-    src/read_rdf_extension.cpp
+    src/rdf_extension.cpp
     src/serd_buffer.cpp
     src/rdf_xml_parser.cpp
     src/xml_buffer.cpp

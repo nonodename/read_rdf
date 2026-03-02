@@ -1,4 +1,4 @@
-# name: test/sql/read_rdf.test
+# name: test/sql/rdf.test
 # description: test read_rdf extension
 # group: [sql]
 
@@ -9,7 +9,7 @@ SELECT * from read_rdf('Arbitrary file');
 Catalog Error: Table Function with name read_rdf does not exist!
 
 # Require statement will ensure this test is run with this extension loaded
-require read_rdf
+require rdf
 
 # Confirm the extension loads but gives a clear error for non-matching paths
 statement error

@@ -2,7 +2,7 @@
 # description: test prefix_expansion in read_rdf extension
 # group: [sql]
 
-require read_rdf
+require rdf
 
 ## Ntriples and Nquads should be unaffected
 

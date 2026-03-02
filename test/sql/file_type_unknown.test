@@ -2,7 +2,7 @@
 # description: error on unknown file_type override
 # group: [sql]
 
-require read_rdf
+require rdf
 
 statement error
 SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'bogus');
