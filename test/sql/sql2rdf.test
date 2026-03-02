@@ -35,3 +35,4 @@ query T
 select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_valid.ttl');
 ----
 true
+
