@@ -126,3 +126,29 @@ COPY (SELECT 1) TO '__TEST_DIR__/x.nt'
 (FORMAT r2rml, mapping 'sql2rdf/tests/sourceR2RML/inside_out_with_rom.ttl');
 ----
 not valid
+
+# ── ignore_non_fatal_errors option ────────────────────────────────────────────
+# The flag is accepted and has no effect when the mapping has no parse errors.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/io_nfe_explicit.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_non_fatal_errors true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_nfe_explicit.nt');
+----
+3
+
+# With ignore_non_fatal_errors = false the parser throws on the first
+# non-fatal error (here: unresolved parentTriplesMap), surfaced as an
+# InvalidInput exception with "R2RML mapping parse error" prefix.
+# Note: the same mapping with ignore_non_fatal_errors = true (the default)
+# still fails at the isValid() check because the null parentTriplesMap renders
+# the mapping invalid — so this test isolates the strict-parse path.
+statement error
+COPY (SELECT 1) TO '__TEST_DIR__/nfe_strict.nt'
+(FORMAT r2rml, mapping 'sql2rdf/tests/sourceR2RML/valid_r2rml_unresolved_parent.ttl',
+ ignore_non_fatal_errors false);
+----
+R2RML mapping parse error

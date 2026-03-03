@@ -247,8 +247,9 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 // Write RDF: COPY ... TO ... (FORMAT r2rml, mapping '...')
 // ============================================================
 
-#define MAPPING_OPTION    "mapping"
-#define RDF_FORMAT_OPTION "rdf_format"
+#define MAPPING_OPTION           "mapping"
+#define RDF_FORMAT_OPTION        "rdf_format"
+#define IGNORE_NON_FATAL_ERRORS  "ignore_non_fatal_errors"
 
 // Convert a DuckDB Value to an r2rml::SQLValue (mirrors DuckDBConnection.cpp).
 static r2rml::SQLValue duckValueToSQLValue(const Value &val) {
@@ -361,6 +362,7 @@ struct R2RMLWriteBindData : public FunctionData {
 	std::vector<std::string> column_names; // uppercased; consumed by copy_to_sink
 	std::vector<LogicalType> sql_types;
 	SerdSyntax output_syntax = SERD_NTRIPLES;
+	bool ignore_non_fatal_errors = true;
 
 	unique_ptr<FunctionData> Copy() const override {
 		auto c = make_uniq<R2RMLWriteBindData>();
@@ -370,6 +372,7 @@ struct R2RMLWriteBindData : public FunctionData {
 		c->column_names = column_names;
 		c->sql_types = sql_types;
 		c->output_syntax = output_syntax;
+		c->ignore_non_fatal_errors = ignore_non_fatal_errors;
 		return c;
 	}
 	bool Equals(const FunctionData &other) const override {
@@ -399,6 +402,7 @@ struct R2RMLWriteLocalState : public LocalFunctionData {};
 static void R2RMLCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options[MAPPING_OPTION] = CopyOption(LogicalType::VARCHAR);
 	input.options[RDF_FORMAT_OPTION] = CopyOption(LogicalType::VARCHAR);
+	input.options[IGNORE_NON_FATAL_ERRORS] = CopyOption(LogicalType::BOOLEAN);
 }
 
 static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunctionBindInput &input,
@@ -417,8 +421,19 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 		throw IOException("R2RML mapping file not found: " + mapping_path);
 	}
 
+	bool ignore_nfe = true;
+	auto nfe_it = options.find(IGNORE_NON_FATAL_ERRORS);
+	if (nfe_it != options.end() && !nfe_it->second.empty()) {
+		ignore_nfe = nfe_it->second[0].GetValue<bool>();
+	}
+
 	r2rml::R2RMLParser parser;
-	auto mapping = std::make_shared<r2rml::R2RMLMapping>(parser.parse(mapping_path));
+	std::shared_ptr<r2rml::R2RMLMapping> mapping;
+	try {
+		mapping = std::make_shared<r2rml::R2RMLMapping>(parser.parse(mapping_path, ignore_nfe));
+	} catch (const std::runtime_error &e) {
+		throw InvalidInputException("R2RML mapping parse error: %s", e.what());
+	}
 
 	bool inside_out = mapping->isValidInsideOut();
 	if (!inside_out && !mapping->isValid()) {
@@ -437,6 +452,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->inside_out_mode = inside_out;
 	result->sql_types = sql_types;
 	result->output_syntax = syntax;
+	result->ignore_non_fatal_errors = ignore_nfe;
 
 	for (const auto &name : names) {
 		std::string upper = name;

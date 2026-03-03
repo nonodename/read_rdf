@@ -146,6 +146,7 @@ To be clear, this is a bit of a hack. But it works, under the covers it's a bit 
 |--------|----------|---------|-------------|
 | `mapping` | Yes | — | Path to the R2RML mapping file (`.ttl`) |
 | `rdf_format` | No | `ntriples` | Output RDF serialization: `ntriples`, `turtle`, or `nquads` |
+| `ignore_non_fatal_errors` | No | `true` | When `true`, logical parse errors (e.g. unresolved `rr:parentTriplesMap`, unrecognised logical-table type) are collected silently. When `false`, the first such error raises an exception. |
 
 ### Example
 
