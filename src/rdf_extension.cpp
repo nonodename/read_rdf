@@ -247,9 +247,9 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 // Write RDF: COPY ... TO ... (FORMAT r2rml, mapping '...')
 // ============================================================
 
-#define MAPPING_OPTION           "mapping"
-#define RDF_FORMAT_OPTION        "rdf_format"
-#define IGNORE_NON_FATAL_ERRORS  "ignore_non_fatal_errors"
+#define MAPPING_OPTION          "mapping"
+#define RDF_FORMAT_OPTION       "rdf_format"
+#define IGNORE_NON_FATAL_ERRORS "ignore_non_fatal_errors"
 
 // Convert a DuckDB Value to an r2rml::SQLValue (mirrors DuckDBConnection.cpp).
 static r2rml::SQLValue duckValueToSQLValue(const Value &val) {
