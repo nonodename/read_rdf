@@ -4,7 +4,7 @@ This repository is based on https://github.com/duckdb/extension-template, check 
 
 ---
 
-This extension, Rdf, allow you to read & write RDF files directly in to/out of DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse/write [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`. No XML write is supported. No one needs that.
+This extension, Rdf, allow you to read & write RDF files directly in to/out of DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse/write [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded to read RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`. No XML write is supported. No one needs that.
 
 ## Building
 ### Managing dependencies
@@ -138,7 +138,7 @@ Use this when your mapping has `rr:logicalTable` declarations that specify which
 COPY (SELECT 1) TO 'output.nt' (FORMAT r2rml, mapping 'mapping.ttl');
 ```
 
-To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. 
+To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. In particular the result set is cached. If a lot of folks end up using this we'll look at a more streaming output here.
 
 ### Options
 

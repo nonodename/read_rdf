@@ -74,6 +74,19 @@ static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
 	return ITriplesBuffer::UNKNOWN;
 }
 
+static SerdSyntax ParseRdfFormat(const std::string &fmt) {
+	switch (ConvertLabelToFileType(fmt)) {
+	case ITriplesBuffer::TURTLE:
+		return SERD_TURTLE;
+	case ITriplesBuffer::NQUADS:
+		return SERD_NQUADS;
+	case ITriplesBuffer::NTRIPLES:
+		return SERD_NTRIPLES;
+	default:
+		throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
+	}
+}
+
 static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
 	auto pos = path.rfind('.');
 	if (pos == std::string::npos)
@@ -85,7 +98,7 @@ static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) 
 static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
 	ITriplesBuffer::FileType ft = ConvertLabelToFileType(s);
 	if (ft == ITriplesBuffer::UNKNOWN)
-		throw std::runtime_error("Unknown file_type override: '" + s + "'");
+		throw InvalidInputException("Unknown file_type override: '%s'", s.c_str());
 	return ft;
 }
 
@@ -296,7 +309,7 @@ public:
 		Connection conn(*context_.db);
 		auto result = conn.Query(sql);
 		if (result->HasError()) {
-			throw std::runtime_error("R2RML query error: " + result->GetError());
+			throw InternalException("R2RML query error: " + result->GetError());
 		}
 		std::vector<r2rml::SQLRow> rows;
 		while (true) {
@@ -339,23 +352,6 @@ struct NullSQLConnection : public r2rml::SQLConnection {
 static size_t serdFileHandleSink(const void *buf, size_t len, void *stream) {
 	static_cast<FileHandle *>(stream)->Write(const_cast<void *>(buf), static_cast<idx_t>(len));
 	return len;
-}
-
-static SerdSyntax ParseRdfFormat(const std::string &fmt) {
-	std::string f = fmt;
-	for (auto &c : f) {
-		c = (char)tolower(c);
-	}
-	if (f == "ntriples" || f == "nt") {
-		return SERD_NTRIPLES;
-	}
-	if (f == "turtle" || f == "ttl") {
-		return SERD_TURTLE;
-	}
-	if (f == "nquads" || f == "nq") {
-		return SERD_NQUADS;
-	}
-	throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
 }
 
 struct R2RMLWriteBindData : public FunctionData {
@@ -463,13 +459,13 @@ static unique_ptr<GlobalFunctionData> R2RMLCopyToInitializeGlobal(ClientContext 
 
 	state->serd_env = serd_env_new(nullptr);
 	if (!state->serd_env) {
-		throw IOException("Failed to create Serd environment for RDF output.");
+		throw InternalException("Failed to create Serd environment for RDF output.");
 	}
 
 	state->serd_writer = serd_writer_new(bind.output_syntax, (SerdStyle)0, state->serd_env, nullptr, serdFileHandleSink,
 	                                     state->file_handle.get());
 	if (!state->serd_writer) {
-		throw IOException("Failed to create Serd writer for RDF output.");
+		throw InternalException("Failed to create Serd writer for RDF output.");
 	}
 
 	return std::move(state);
