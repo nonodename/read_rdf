@@ -1,20 +1,10 @@
-# Read_Rdf
+# A DuckDB extension to read and write RDF
 
 This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
 
 ---
 
-This extension, Read_Rdf, allow you to read RDF files directly into DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded for RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`.
-
-Six columns are returned for RDF. Three are always not null:
-* subject
-* predicate
-* object
-
-The other three columns will be null if no value is provided in the underlying RDF file:
-* graph
-* language_tag
-* datatype
+This extension, Rdf, allow you to read & write RDF files directly in to/out of DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse/write [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded to read RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`. No XML write is supported. No one needs that.
 
 ## Building
 ### Managing dependencies
@@ -48,16 +38,28 @@ The main binaries that will be built are:
 ```sh
 ./build/release/duckdb
 ./build/release/test/unittest
-./build/release/extension/read_rdf/read_rdf.duckdb_extension
+./build/release/extension/rdf/rdf.duckdb_extension
 ```
 - `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
 - `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `read_rdf.duckdb_extension` is the loadable binary as it would be distributed.
+- `rdf.duckdb_extension` is the loadable binary as it would be distributed.
 
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
-Now we can use the features from the extension directly in DuckDB. `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
+## Reading RDF
+
+Six columns are returned for RDF. Three are always not null:
+* subject
+* predicate
+* object
+
+The other three columns will be null if no value is provided in the underlying RDF file:
+* graph
+* language_tag
+* datatype
+
+ `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
 ```
 D select subject, predicate from read_rdf('test/rdf/tests.nt');
 ┌───────────────────────────────────┬─────────────────────────────────────────────────┐
@@ -110,6 +112,79 @@ SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = 
 
 If the pattern matches no files an `IO Error` is raised.
 
+## _Experimental_ RDF write support
+
+The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) mapping file, DuckDB's `COPY TO` syntax and the (SQL2RDF++)[https://github.com/nonodename/sql2rdf] library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
+
+This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. I you use it, please get in touch and contribute issues using the steps
+
+### Inside-out mode
+
+Use this when your R2RML mapping has **no** `rr:logicalTable` declarations (i.e. `can_call_inside_out()` returns `true`). DuckDB drives the SQL query and passes each result row to the extension, which maps them to RDF triples using the mapping:
+
+```sql
+COPY (SELECT empno, ename, deptno FROM emp)
+TO 'output.nt'
+(FORMAT r2rml, mapping 'mapping.ttl');
+```
+
+Expect this mode to be as performant as single threaded output can be as it follows the idioms for copy export. 
+
+### Full R2RML mode
+
+Use this when your mapping has `rr:logicalTable` declarations that specify which tables to query. The extension ignores the SQL in the `COPY` statement and runs the mapping's own queries against the live DuckDB instance. Pass a dummy `SELECT 1` to satisfy DuckDB's `COPY` syntax:
+
+```sql
+COPY (SELECT 1) TO 'output.nt' (FORMAT r2rml, mapping 'mapping.ttl');
+```
+
+To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. In particular the result set is cached. If a lot of folks end up using this we'll look at a more streaming output here.
+
+### Options
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `mapping` | Yes | — | Path to the R2RML mapping file (`.ttl`) |
+| `rdf_format` | No | `ntriples` | Output RDF serialization: `ntriples`, `turtle`, or `nquads` |
+| `ignore_non_fatal_errors` | No | `true` | When `true`, logical parse errors (e.g. unresolved `rr:parentTriplesMap`, unrecognised logical-table type) are collected silently. When `false`, the first such error raises an exception. |
+
+### Example
+
+```sql
+-- Create some data
+CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
+
+-- Write as NTriples using an inside-out mapping
+COPY (SELECT empno, ename, deptno FROM emp)
+TO 'employees.nt'
+(FORMAT r2rml, mapping 'mapping.ttl');
+
+-- Read it back
+SELECT subject, predicate, object FROM read_rdf('employees.nt');
+```
+
+```
+┌───────────────────────────────────────┬─────────────────────────────────────────────────┬───────────────────────────────────────┐
+│ subject                               │ predicate                                       │ object                                │
+├───────────────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────┤
+│ http://data.example.com/employee/7369 │ http://example.com/ns#department                │ http://data.example.com/department/10 │
+│ http://data.example.com/employee/7369 │ http://example.com/ns#name                      │ SMITH                                 │
+│ http://data.example.com/employee/7369 │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │ http://example.com/ns#Employee        │
+└───────────────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────────────────────┘
+```
+
+### R2RML validation helpers
+
+Two scalar functions are available to validate R2RML mapping files:
+
+```sql
+-- Returns true if the file is a valid R2RML mapping
+SELECT is_valid_r2rml('mapping.ttl');
+
+-- Returns true if the mapping is valid for inside-out mode (no rr:logicalTable etc.)
+SELECT can_call_inside_out('mapping.ttl');
+```
+
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:
 ```sh
@@ -153,8 +228,8 @@ DuckDB. To specify a specific version, you can pass the version instead.
 
 After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
 ```sql
-INSTALL read_rdf
-LOAD read_rdf
+INSTALL rdf
+LOAD rdf
 ```
 
 If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.

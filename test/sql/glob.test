@@ -2,7 +2,7 @@
 # description: test file glob support in read_rdf extension
 # group: [sql]
 
-require read_rdf
+require rdf
 
 # A pattern that matches nothing should raise a clear error
 statement error

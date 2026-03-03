@@ -2,7 +2,7 @@
 # description: parsing fails when file_type mismatches content
 # group: [sql]
 
-require read_rdf
+require rdf
 
 statement error
 SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'nt');

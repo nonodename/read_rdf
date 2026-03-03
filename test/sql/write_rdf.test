@@ -1,0 +1,154 @@
+# name: test/sql/write_rdf.test
+# description: test write RDF support via COPY ... TO ... (FORMAT r2rml)
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# Create a small EMP table used by both inside-out and full R2RML tests.
+statement ok
+CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+
+# ── Inside-out mode ───────────────────────────────────────────────────────────
+# The mapping (test/r2rml/inside_out.ttl) has no rr:logicalTable.
+# DuckDB drives the SELECT and passes rows to the extension via copy_to_sink.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/io_out.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl');
+
+# Read back the generated file and count triples (3 expected: rdf:type + name + department)
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nt');
+----
+3
+
+# Verify the literal triple
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_out.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+# Verify the template-based IRI triple
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_out.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#department';
+----
+http://data.example.com/department/10
+
+# Verify the rdf:type triple
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_out.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+http://example.com/ns#Employee
+
+# All three triples share the same subject
+query T
+SELECT DISTINCT subject FROM read_rdf('__TEST_DIR__/io_out.nt');
+----
+http://data.example.com/employee/7369
+
+# ── Full R2RML mode ───────────────────────────────────────────────────────────
+# The mapping (test/r2rml/full_r2rml.ttl) has rr:logicalTable [ rr:tableName "emp" ].
+# The extension ignores the COPY SELECT and queries the EMP table itself.
+
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/full_out.nt'
+(FORMAT r2rml, mapping 'test/r2rml/full_r2rml.ttl');
+
+# Same three triples expected, same subject
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_out.nt');
+----
+3
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/full_out.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+# ── rdf_format option ─────────────────────────────────────────────────────────
+# Turtle output is valid; verify the file can be read back with read_rdf.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/io_out.ttl'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'turtle');
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.ttl', file_type = 'ttl');
+----
+3
+
+# NQuads format
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/io_out.nq'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'nquads');
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nq');
+----
+3
+
+# ── Error cases ───────────────────────────────────────────────────────────────
+
+# mapping option is required
+statement error
+COPY (SELECT 1) TO '__TEST_DIR__/x.nt' (FORMAT r2rml);
+----
+r2rml format requires a 'mapping' option
+
+# mapping file not found
+statement error
+COPY (SELECT 1) TO '__TEST_DIR__/x.nt' (FORMAT r2rml, mapping 'nonexistent.ttl');
+----
+R2RML mapping file not found
+
+# invalid rdf_format value
+statement error
+COPY (SELECT EMPNO FROM emp) TO '__TEST_DIR__/x.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'jsonld');
+----
+Unknown rdf_format
+
+# mapping that is neither valid inside-out nor fully valid R2RML
+statement error
+COPY (SELECT 1) TO '__TEST_DIR__/x.nt'
+(FORMAT r2rml, mapping 'sql2rdf/tests/sourceR2RML/inside_out_with_rom.ttl');
+----
+not valid
+
+# ── ignore_non_fatal_errors option ────────────────────────────────────────────
+# The flag is accepted and has no effect when the mapping has no parse errors.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/io_nfe_explicit.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_non_fatal_errors true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_nfe_explicit.nt');
+----
+3
+
+# With ignore_non_fatal_errors = false the parser throws on the first
+# non-fatal error (here: unresolved parentTriplesMap), surfaced as an
+# InvalidInput exception with "R2RML mapping parse error" prefix.
+# Note: the same mapping with ignore_non_fatal_errors = true (the default)
+# still fails at the isValid() check because the null parentTriplesMap renders
+# the mapping invalid — so this test isolates the strict-parse path.
+statement error
+COPY (SELECT 1) TO '__TEST_DIR__/nfe_strict.nt'
+(FORMAT r2rml, mapping 'sql2rdf/tests/sourceR2RML/valid_r2rml_unresolved_parent.ttl',
+ ignore_non_fatal_errors false);
+----
+R2RML mapping parse error

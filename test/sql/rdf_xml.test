@@ -8,7 +8,7 @@
 # we parsed the files exactly as the spec wants.
 
 # Require statement will ensure this test is run with this extension loaded
-require read_rdf
+require rdf
 
 # Parameterized testing statement
 statement ok

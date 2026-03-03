@@ -2,7 +2,7 @@
 # description: test file_type override in read_rdf extension
 # group: [sql]
 
-require read_rdf
+require rdf
 
 # Use a fake extension but override to TTL
 query T
