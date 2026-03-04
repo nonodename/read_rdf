@@ -11,17 +11,19 @@
 #include <libxml/SAX2.h>
 #include <memory>
 
+/// A single RDF triple with optional datatype and language tag on the object.
 struct RdfStatement {
 	std::string subject;
 	std::string predicate;
 	std::string object;
-	std::string datatype;
-	std::string language;
+	std::string datatype; // XSD datatype URI, or empty
+	std::string language; // BCP 47 language tag, or empty
 };
 
 class RdfXmlParser;
 
-// Helper struct to store pointers into libXML returned buffers for intermediate comparisons
+/// Non-owning view into a libxml2 buffer, used to avoid copying attribute values during parsing.
+/// The pointers remain valid only for the duration of the SAX callback in which they are obtained.
 struct LibXMLView {
 	const xmlChar *start;
 	const xmlChar *end;
@@ -45,32 +47,51 @@ struct LibXMLView {
 		return empty() ? "" : std::string(reinterpret_cast<const char *>(start), end - start);
 	}
 };
+/// Parsed RDF/XML attributes for a single element, held as non-owning views into libxml2 buffers.
 struct RdfAttributes {
-	LibXMLView about;
-	LibXMLView nodeID;
-	LibXMLView rdf_id;
-	LibXMLView resource;
-	LibXMLView datatype;
-	LibXMLView parseType;
-	LibXMLView lang;
-	LibXMLView base;
+	LibXMLView about;     // rdf:about
+	LibXMLView nodeID;    // rdf:nodeID
+	LibXMLView rdf_id;    // rdf:ID
+	LibXMLView resource;  // rdf:resource
+	LibXMLView datatype;  // rdf:datatype
+	LibXMLView parseType; // rdf:parseType ("Literal", "Resource", "Collection")
+	LibXMLView lang;      // xml:lang
+	LibXMLView base;      // xml:base
 
+	/// Returns the subject URI/bnode for this element, applying rdf:about > rdf:ID > rdf:nodeID > auto bnode priority.
 	std::string getSubject(RdfXmlParser *parser) const;
 };
 
+/// Streaming SAX-based parser for RDF/XML documents (https://www.w3.org/TR/rdf-syntax-grammar/).
+///
+/// Feed data incrementally via parseChunk(). Each complete RDF statement is delivered
+/// synchronously to the StatementCallback as it is parsed. Namespace declarations are
+/// reported via NamespaceCallback. Errors are reported non-fatally via ErrorCallback.
 class RdfXmlParser {
 public:
 	using StatementCallback = std::function<void(const RdfStatement &)>;
 	using NamespaceCallback = std::function<void(const std::string &prefix, const std::string &uri)>;
 	using ErrorCallback = std::function<void(const std::string &message)>;
 
+	/// @param s_cb  Called for every emitted RDF statement.
+	/// @param n_cb  Called for every namespace declaration encountered.
+	/// @param e_cb  Called on non-fatal parse errors.
+	/// @param base  Initial base URI used to resolve relative URIs.
 	RdfXmlParser(StatementCallback s_cb = nullptr, NamespaceCallback n_cb = nullptr, ErrorCallback e_cb = nullptr,
 	             std::string base = "");
-	// must be called with is_final true on the last chunk otherwise libxml may
-	// leak resources
+
+	/// Feed a chunk of XML data to the parser.
+	/// @param chunk     Pointer to the data buffer (may be nullptr on the final call).
+	/// @param size      Number of bytes in @p chunk.
+	/// @param is_final  Must be true on the last call; libxml2 will leak resources if omitted.
 	void parseChunk(const char *chunk, int size, bool is_final);
+
 	~RdfXmlParser();
+
+	/// Register a namespace prefix → URI mapping (used for namespace-aware URI expansion).
 	void addNameSpace(const std::string &prefix, const std::string &uri);
+
+	/// Set the prefix string prepended to auto-generated blank node identifiers (default "_:b").
 	void setBlankNodePrefix(const std::string &prefix) {
 		_blank_node_prefix = prefix;
 	}
@@ -111,20 +132,28 @@ private:
 	std::string RDF_PREDICATE_URI;
 	std::string RDF_OBJECT_URI;
 	std::string RDF_XMLLITERAL_URI;
-	enum class ElementType { NODE, PROPERTY, PROPERTY_XML_LITERAL, PROPERTY_COLLECTION, ROOT };
+	/// Role of an element on the parse stack, following the RDF/XML grammar productions.
+	enum class ElementType {
+		NODE,                 // Subject node element
+		PROPERTY,             // Property element (text or resource object)
+		PROPERTY_XML_LITERAL, // Property element with rdf:parseType="Literal"
+		PROPERTY_COLLECTION,  // Property element with rdf:parseType="Collection"
+		ROOT                  // rdf:RDF wrapper element
+	};
 
+	/// Per-element state maintained on the parse stack while a SAX element is open.
 	struct ElementFrame {
 		ElementType type;
 		std::string uri;
 		std::string lang;
 		std::string datatype;
-		std::string reify_id; // For rdf:ID on properties (Reification)
-		std::string text_buf;
-		std::string baseURI; // Current base URI
-		bool has_obj_nodes = false;
-		int li_counter = 0;          // Tracks rdf:_1, rdf:_2 for NODE types
-		std::string collection_tail; // Tracks the last BNode in an rdf:parseType="Collection"
-		int literal_depth = 0;       // For tracking nested XML in XMLLiteral
+		std::string reify_id;        // URI for reification statements (from rdf:ID on a property)
+		std::string text_buf;        // Accumulated character data / XMLLiteral content
+		std::string baseURI;         // Resolved xml:base for this element
+		bool has_obj_nodes = false;  // True once a child node element has been seen (suppresses text literal)
+		int li_counter = 0;          // Tracks rdf:_1, rdf:_2, … for NODE types with rdf:li children
+		std::string collection_tail; // Last BNode in an rdf:parseType="Collection" linked list
+		int literal_depth = 0;       // Nesting depth of child elements inside an XMLLiteral
 		ElementFrame(ElementType t, std::string u, std::string l, LibXMLView d, std::string r, std::string tb,
 		             std::string bu, bool obj)
 		    : type(t), uri(u), lang(l), datatype(d.toString()), reify_id(r), text_buf(tb), baseURI(bu),
