@@ -15,13 +15,16 @@
 #include "duckdb/common/file_system.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <r2rml/R2RMLParser.h>
+#include <r2rml/MapSQLRow.h>
 #include <r2rml/SQLConnection.h>
 #include <r2rml/SQLResultSet.h>
 #include <r2rml/SQLRow.h>
 #include <r2rml/SQLValue.h>
+#include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
 #include <map>
 #include <mutex>
+#include <unordered_map>
 
 using namespace std;
 
@@ -251,51 +254,139 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 #define RDF_FORMAT_OPTION       "rdf_format"
 #define IGNORE_NON_FATAL_ERRORS "ignore_non_fatal_errors"
 
-// Convert a DuckDB Value to an r2rml::SQLValue (mirrors DuckDBConnection.cpp).
-static r2rml::SQLValue duckValueToSQLValue(const Value &val) {
-	if (val.IsNull()) {
-		return r2rml::SQLValue();
+// Lazily wraps a DuckDB Value; type and string representation are computed on
+// first access so columns unreferenced by any TriplesMap are never converted.
+class DataChunkSQLValue : public r2rml::SQLValue {
+public:
+	explicit DataChunkSQLValue(Value val) : val_(std::move(val)) {
 	}
-	switch (val.type().id()) {
-	case LogicalTypeId::BOOLEAN:
-		return r2rml::SQLValue(val.GetValue<bool>());
-	case LogicalTypeId::TINYINT:
-	case LogicalTypeId::SMALLINT:
-	case LogicalTypeId::INTEGER:
-	case LogicalTypeId::UTINYINT:
-	case LogicalTypeId::USMALLINT:
-	case LogicalTypeId::UINTEGER:
-		return r2rml::SQLValue(val.GetValue<int32_t>());
-	case LogicalTypeId::BIGINT:
-	case LogicalTypeId::UBIGINT:
-	case LogicalTypeId::HUGEINT:
-		return r2rml::SQLValue(val.ToString());
-	case LogicalTypeId::FLOAT:
-		return r2rml::SQLValue(static_cast<double>(val.GetValue<float>()));
-	case LogicalTypeId::DOUBLE:
-		return r2rml::SQLValue(val.GetValue<double>());
-	case LogicalTypeId::VARCHAR:
-	case LogicalTypeId::BLOB:
-		return r2rml::SQLValue(val.GetValue<std::string>());
-	default:
-		return r2rml::SQLValue(val.ToString());
+
+	bool isNull() const override {
+		return val_.IsNull();
 	}
-}
+	Type type() const override {
+		ensureConverted();
+		return type_;
+	}
+	const std::string &asString() const override {
+		ensureConverted();
+		return string_;
+	}
+	std::unique_ptr<SQLValue> clone() const override {
+		return std::unique_ptr<SQLValue>(new DataChunkSQLValue(val_));
+	}
+
+private:
+	Value val_;
+	mutable Type type_ {Type::Null};
+	mutable std::string string_;
+	mutable bool converted_ {false};
+
+	void ensureConverted() const {
+		if (converted_) {
+			return;
+		}
+		converted_ = true;
+		if (val_.IsNull()) {
+			return;
+		}
+		switch (val_.type().id()) {
+		case LogicalTypeId::BOOLEAN:
+			type_ = Type::Boolean;
+			string_ = val_.GetValue<bool>() ? "true" : "false";
+			break;
+		case LogicalTypeId::TINYINT:
+		case LogicalTypeId::SMALLINT:
+		case LogicalTypeId::INTEGER:
+		case LogicalTypeId::UTINYINT:
+		case LogicalTypeId::USMALLINT:
+		case LogicalTypeId::UINTEGER:
+			type_ = Type::Integer;
+			string_ = std::to_string(val_.GetValue<int32_t>());
+			break;
+		case LogicalTypeId::BIGINT:
+		case LogicalTypeId::UBIGINT:
+		case LogicalTypeId::HUGEINT:
+			type_ = Type::String;
+			string_ = val_.ToString();
+			break;
+		case LogicalTypeId::FLOAT:
+			type_ = Type::Double;
+			string_ = std::to_string(static_cast<double>(val_.GetValue<float>()));
+			break;
+		case LogicalTypeId::DOUBLE:
+			type_ = Type::Double;
+			string_ = std::to_string(val_.GetValue<double>());
+			break;
+		case LogicalTypeId::VARCHAR:
+		case LogicalTypeId::BLOB:
+			type_ = Type::String;
+			string_ = val_.GetValue<std::string>();
+			break;
+		default:
+			type_ = Type::String;
+			string_ = val_.ToString();
+			break;
+		}
+	}
+};
+
+// Zero-copy proxy over a single row of a DuckDB DataChunk.  Values are wrapped
+// in DataChunkSQLValue on demand; columns not referenced by any TriplesMap are
+// never materialised.  The DataChunk and col_index must outlive this object.
+class DataChunkSQLRow : public r2rml::SQLRow {
+public:
+	DataChunkSQLRow(const DataChunk &chunk, idx_t row,
+	                const std::unordered_map<std::string, idx_t> &col_index)
+	    : chunk_(chunk), row_(row), col_index_(col_index) {
+	}
+
+	std::unique_ptr<r2rml::SQLValue> getValue(const std::string &name) const override {
+		auto it = col_index_.find(name);
+		if (it == col_index_.end()) {
+			return std::unique_ptr<r2rml::SQLValue>(new r2rml::StringSQLValue());
+		}
+		return std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(it->second, row_)));
+	}
+
+	bool isNull(const std::string &name) const override {
+		auto it = col_index_.find(name);
+		if (it == col_index_.end()) {
+			return true;
+		}
+		return chunk_.GetValue(it->second, row_).IsNull();
+	}
+
+	// Materialise into a MapSQLRow when a stable copy is needed.
+	std::unique_ptr<r2rml::SQLRow> clone() const override {
+		std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
+		for (const auto &kv : col_index_) {
+			cols[kv.first] =
+			    std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(kv.second, row_)));
+		}
+		return std::unique_ptr<r2rml::SQLRow>(new r2rml::MapSQLRow(std::move(cols)));
+	}
+
+private:
+	const DataChunk &chunk_;
+	idx_t row_;
+	const std::unordered_map<std::string, idx_t> &col_index_;
+};
 
 // Materialised result set: holds all rows fetched from a DuckDB query.
 class VectorSQLResultSet : public r2rml::SQLResultSet {
 public:
-	explicit VectorSQLResultSet(std::vector<r2rml::SQLRow> rows) : rows_(std::move(rows)) {
+	explicit VectorSQLResultSet(std::vector<r2rml::MapSQLRow> rows) : rows_(std::move(rows)) {
 	}
 	bool next() override {
 		return ++cursor_ < static_cast<int>(rows_.size());
 	}
-	r2rml::SQLRow getCurrentRow() const override {
+	const r2rml::SQLRow &getCurrentRow() const override {
 		return rows_[static_cast<size_t>(cursor_)];
 	}
 
 private:
-	std::vector<r2rml::SQLRow> rows_;
+	std::vector<r2rml::MapSQLRow> rows_;
 	int cursor_ = -1;
 };
 
@@ -312,20 +403,20 @@ public:
 		if (result->HasError()) {
 			throw InternalException("R2RML query error: " + result->GetError());
 		}
-		std::vector<r2rml::SQLRow> rows;
+		std::vector<r2rml::MapSQLRow> rows;
 		while (true) {
 			auto chunk = result->Fetch();
 			if (!chunk || chunk->size() == 0) {
 				break;
 			}
 			for (idx_t r = 0; r < chunk->size(); r++) {
-				std::map<std::string, r2rml::SQLValue> cols;
+				std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
 				for (idx_t c = 0; c < chunk->ColumnCount(); c++) {
 					std::string name = result->ColumnName(c);
 					for (auto &ch : name) {
 						ch = (char)toupper(ch);
 					}
-					cols[name] = duckValueToSQLValue(chunk->GetValue(c, r));
+					cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk->GetValue(c, r)));
 				}
 				rows.emplace_back(std::move(cols));
 			}
@@ -501,12 +592,15 @@ static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalF
 	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
 	NullSQLConnection null_conn;
 
+	// Build column-name → index map once per chunk; reused for every row.
+	std::unordered_map<std::string, idx_t> col_index;
+	col_index.reserve(input.ColumnCount());
+	for (idx_t col = 0; col < input.ColumnCount(); col++) {
+		col_index[bind.column_names[col]] = col;
+	}
+
 	for (idx_t row = 0; row < input.size(); row++) {
-		std::map<std::string, r2rml::SQLValue> cols;
-		for (idx_t col = 0; col < input.ColumnCount(); col++) {
-			cols[bind.column_names[col]] = duckValueToSQLValue(input.GetValue(col, row));
-		}
-		r2rml::SQLRow sql_row(std::move(cols));
+		DataChunkSQLRow sql_row(input, row, col_index);
 		for (const auto &tm : bind.mapping->triplesMaps) {
 			if (tm) {
 				tm->generateTriples(sql_row, *global.serd_writer, *bind.mapping, null_conn);

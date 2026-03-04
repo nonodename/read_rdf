@@ -63,7 +63,9 @@ add_library(${SQL2RDF_NAME} STATIC
   sql2rdf/src/r2rml/JoinCondition.cpp
   sql2rdf/src/r2rml/ReferencingObjectMap.cpp
   sql2rdf/src/r2rml/SQLRow.cpp
+  sql2rdf/src/r2rml/MapSQLRow.cpp
   sql2rdf/src/r2rml/SQLValue.cpp
+  sql2rdf/src/r2rml/StringSQLValue.cpp
   sql2rdf/src/r2rml/R2RMLParser.cpp
 )
 target_include_directories(${SQL2RDF_NAME} PRIVATE
