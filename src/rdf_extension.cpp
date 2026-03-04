@@ -336,8 +336,7 @@ private:
 // never materialised.  The DataChunk and col_index must outlive this object.
 class DataChunkSQLRow : public r2rml::SQLRow {
 public:
-	DataChunkSQLRow(const DataChunk &chunk, idx_t row,
-	                const std::unordered_map<std::string, idx_t> &col_index)
+	DataChunkSQLRow(const DataChunk &chunk, idx_t row, const std::unordered_map<std::string, idx_t> &col_index)
 	    : chunk_(chunk), row_(row), col_index_(col_index) {
 	}
 
@@ -361,8 +360,7 @@ public:
 	std::unique_ptr<r2rml::SQLRow> clone() const override {
 		std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
 		for (const auto &kv : col_index_) {
-			cols[kv.first] =
-			    std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(kv.second, row_)));
+			cols[kv.first] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(kv.second, row_)));
 		}
 		return std::unique_ptr<r2rml::SQLRow>(new r2rml::MapSQLRow(std::move(cols)));
 	}
