@@ -8,7 +8,6 @@ XMLBuffer::XMLBuffer(std::string path, std::string base_uri, duckdb::FileSystem 
       _parser([this](const RdfStatement &s) { this->statementCallback(s); },
               [this](const std::string &prefix, const std::string &uri) { this->namespaceCallback(prefix, uri); },
               [this](const std::string &msg) { this->errorCallback(msg); }, base_uri) {
-
 	if (!fs) {
 		throw std::runtime_error("XMLBuffer requires a valid DuckDB FileSystem pointer");
 	}
@@ -64,7 +63,6 @@ void XMLBuffer::writeToVector(duckdb::Vector &vec, idx_t row_idx, const std::str
 	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
 }
 void XMLBuffer::statementCallback(const RdfStatement &stmt) {
-
 	// Safety check: If chunk is full, push to overflow and return
 	if (_current_count >= STANDARD_VECTOR_SIZE) {
 		RDFRow row;
