@@ -240,7 +240,7 @@ Please report bugs as issues on this project. Provide a sample RDF file that dem
 
 ## Future work
 
-Potential future enhancements, courtesy Claude, below. If any of these
+Potential future enhancements, courtesy Claude, below. If any of these seem interesting to you please indicate via an issue (or implement as a pull request :-)).
 
 ## Functional Enhancements
 1. Typed object values
