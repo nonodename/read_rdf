@@ -5,6 +5,7 @@
 #include "include/serd_buffer.hpp"
 #include "include/xml_buffer.hpp"
 #include "include/I_triples_buffer.hpp"
+#include "include/sparql_reader.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -662,6 +663,8 @@ static void LoadInternal(ExtensionLoader &loader) {
 	copy_func.copy_to_finalize = R2RMLCopyToFinalize;
 	copy_func.execution_mode = R2RMLCopyExecutionMode;
 	loader.RegisterFunction(copy_func);
+
+	RegisterSPARQLReader(loader);
 }
 
 void RdfExtension::Load(ExtensionLoader &loader) {

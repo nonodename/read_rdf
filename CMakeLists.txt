@@ -8,6 +8,7 @@ set(SERD_NAME serd_lib)
 set(SQL2RDF_NAME sql2rdf_lib)
 
 find_package(LibXml2 REQUIRED)
+find_package(CURL REQUIRED)
 
 project(${TARGET_NAME} LANGUAGES C CXX)
 
@@ -19,6 +20,7 @@ set(EXTENSION_SOURCES
     src/serd_buffer.cpp
     src/rdf_xml_parser.cpp
     src/xml_buffer.cpp
+    src/sparql_reader.cpp
 )
 
 # ------------------------------------------------------------
@@ -107,12 +109,14 @@ target_link_libraries(${EXTENSION_NAME}
         ${SERD_NAME}
         ${SQL2RDF_NAME}
         LibXml2::LibXml2
+        CURL::libcurl
 )
 
 target_link_libraries(${LOADABLE_EXTENSION_NAME}
         ${SERD_NAME}
         ${SQL2RDF_NAME}
         LibXml2::LibXml2
+        CURL::libcurl
 )
 
 # Windows: force static behavior (avoid dllimport/dllexport mismatches)

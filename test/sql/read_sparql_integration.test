@@ -1,0 +1,31 @@
+# name: test/sql/read_sparql_integration.test
+# description: live Wikidata SPARQL endpoint test (requires network access)
+# group: [sql]
+
+require rdf
+
+# Constant-result query using VALUES — stable regardless of Wikidata data changes
+query I
+SELECT COUNT(*) FROM read_sparql(
+    'https://query.wikidata.org/sparql',
+    'SELECT ?x WHERE { VALUES ?x { "hello" } }'
+);
+----
+1
+
+query T
+SELECT x FROM read_sparql(
+    'https://query.wikidata.org/sparql',
+    'SELECT ?x WHERE { VALUES ?x { "hello" } }'
+);
+----
+hello
+
+# Multi-column result
+query II
+SELECT COUNT(*), COUNT(DISTINCT a) FROM read_sparql(
+    'https://query.wikidata.org/sparql',
+    'SELECT ?a ?b WHERE { VALUES (?a ?b) { ("foo" "bar") ("baz" "qux") } }'
+);
+----
+2	2
