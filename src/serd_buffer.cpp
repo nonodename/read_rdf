@@ -125,12 +125,18 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		RDFRow row = _overflow_buffer.front();
 		_overflow_buffer.pop_front();
 		// Manual copy from string to vector (slow path)
-		output.SetValue(0, _current_count, duckdb::Value(row.graph));
-		output.SetValue(1, _current_count, duckdb::Value(row.subject));
-		output.SetValue(2, _current_count, duckdb::Value(row.predicate));
-		output.SetValue(3, _current_count, duckdb::Value(row.object));
-		output.SetValue(4, _current_count, duckdb::Value(row.datatype));
-		output.SetValue(5, _current_count, duckdb::Value(row.lang));
+		if (_output_slot[0] >= 0)
+			output.SetValue(_output_slot[0], _current_count, duckdb::Value(row.graph));
+		if (_output_slot[1] >= 0)
+			output.SetValue(_output_slot[1], _current_count, duckdb::Value(row.subject));
+		if (_output_slot[2] >= 0)
+			output.SetValue(_output_slot[2], _current_count, duckdb::Value(row.predicate));
+		if (_output_slot[3] >= 0)
+			output.SetValue(_output_slot[3], _current_count, duckdb::Value(row.object));
+		if (_output_slot[4] >= 0)
+			output.SetValue(_output_slot[4], _current_count, duckdb::Value(row.datatype));
+		if (_output_slot[5] >= 0)
+			output.SetValue(_output_slot[5], _current_count, duckdb::Value(row.lang));
 		_current_count++;
 	}
 
@@ -259,12 +265,19 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 
 	// Fast Path: Direct Write to DuckDB Vectors
 	// Note: DataChunk columns map to: 0:graph, 1:subject, 2:predicate, 3:object, ...
-	self->WriteToVector(self->_current_chunk->data[0], self->_current_count, graph);
-	self->WriteToVector(self->_current_chunk->data[1], self->_current_count, subject);
-	self->WriteToVector(self->_current_chunk->data[2], self->_current_count, predicate);
-	self->WriteToVector(self->_current_chunk->data[3], self->_current_count, object);
-	self->WriteToVector(self->_current_chunk->data[4], self->_current_count, object_datatype);
-	self->WriteToVector(self->_current_chunk->data[5], self->_current_count, object_lang);
+	const int8_t *slots = self->_output_slot;
+	if (slots[0] >= 0)
+		self->WriteToVector(self->_current_chunk->data[slots[0]], self->_current_count, graph);
+	if (slots[1] >= 0)
+		self->WriteToVector(self->_current_chunk->data[slots[1]], self->_current_count, subject);
+	if (slots[2] >= 0)
+		self->WriteToVector(self->_current_chunk->data[slots[2]], self->_current_count, predicate);
+	if (slots[3] >= 0)
+		self->WriteToVector(self->_current_chunk->data[slots[3]], self->_current_count, object);
+	if (slots[4] >= 0)
+		self->WriteToVector(self->_current_chunk->data[slots[4]], self->_current_count, object_datatype);
+	if (slots[5] >= 0)
+		self->WriteToVector(self->_current_chunk->data[slots[5]], self->_current_count, object_lang);
 
 	self->_current_count++;
 	return SERD_SUCCESS;

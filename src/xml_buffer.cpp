@@ -29,12 +29,18 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		RDFRow row = _overflow_buffer.front();
 		_overflow_buffer.pop_front();
 		// Manual copy from string to vector (slow path)
-		output.SetValue(0, _current_count, duckdb::Value(row.graph));
-		output.SetValue(1, _current_count, duckdb::Value(row.subject));
-		output.SetValue(2, _current_count, duckdb::Value(row.predicate));
-		output.SetValue(3, _current_count, duckdb::Value(row.object));
-		output.SetValue(4, _current_count, duckdb::Value(row.datatype));
-		output.SetValue(5, _current_count, duckdb::Value(row.lang));
+		if (_output_slot[0] >= 0)
+			output.SetValue(_output_slot[0], _current_count, duckdb::Value(row.graph));
+		if (_output_slot[1] >= 0)
+			output.SetValue(_output_slot[1], _current_count, duckdb::Value(row.subject));
+		if (_output_slot[2] >= 0)
+			output.SetValue(_output_slot[2], _current_count, duckdb::Value(row.predicate));
+		if (_output_slot[3] >= 0)
+			output.SetValue(_output_slot[3], _current_count, duckdb::Value(row.object));
+		if (_output_slot[4] >= 0)
+			output.SetValue(_output_slot[4], _current_count, duckdb::Value(row.datatype));
+		if (_output_slot[5] >= 0)
+			output.SetValue(_output_slot[5], _current_count, duckdb::Value(row.lang));
 		_current_count++;
 	}
 
@@ -73,13 +79,22 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 		row.datatype = stmt.datatype;
 		row.lang = stmt.language;
 		_overflow_buffer.push_back(std::move(row));
+		return;
 	}
-	writeToVector(_current_chunk->data[0], _current_count, "");
-	writeToVector(_current_chunk->data[1], _current_count, stmt.subject);
-	writeToVector(_current_chunk->data[2], _current_count, stmt.predicate);
-	writeToVector(_current_chunk->data[3], _current_count, stmt.object);
-	writeToVector(_current_chunk->data[4], _current_count, stmt.datatype);
-	writeToVector(_current_chunk->data[5], _current_count, stmt.language);
+	// Fast path with slot mapping
+	const int8_t *slots = _output_slot;
+	if (slots[0] >= 0)
+		writeToVector(_current_chunk->data[slots[0]], _current_count, "");
+	if (slots[1] >= 0)
+		writeToVector(_current_chunk->data[slots[1]], _current_count, stmt.subject);
+	if (slots[2] >= 0)
+		writeToVector(_current_chunk->data[slots[2]], _current_count, stmt.predicate);
+	if (slots[3] >= 0)
+		writeToVector(_current_chunk->data[slots[3]], _current_count, stmt.object);
+	if (slots[4] >= 0)
+		writeToVector(_current_chunk->data[slots[4]], _current_count, stmt.datatype);
+	if (slots[5] >= 0)
+		writeToVector(_current_chunk->data[slots[5]], _current_count, stmt.language);
 	_current_count++;
 }
 

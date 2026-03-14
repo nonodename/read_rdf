@@ -128,6 +128,7 @@ struct RDFReaderGlobalState : public GlobalTableFunctionState {
 // Local state: holds the active parser for this thread's current file
 struct RDFReaderLocalState : public LocalTableFunctionState {
 	std::unique_ptr<ITriplesBuffer> ib;
+	vector<column_t> column_ids;
 };
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
@@ -184,7 +185,9 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 // Creates thread-local state; file opening is deferred to RDFReaderFunc
 static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &context, TableFunctionInitInput &input,
                                                          GlobalTableFunctionState *global_state) {
-	return make_uniq<RDFReaderLocalState>();
+	auto state = make_uniq<RDFReaderLocalState>();
+	state->column_ids = input.column_ids;
+	return state;
 }
 
 // Opens a single file and returns the appropriate parser buffer
@@ -239,6 +242,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			auto new_ib =
 			    OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing, bind_data.expand_prefixes);
 			new_ib->StartParse();
+			new_ib->SetColumnIds(state.column_ids);
 			state.ib = std::move(new_ib);
 		} catch (const std::runtime_error &re) {
 			throw IOException(re.what());
@@ -638,6 +642,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
+	tf.projection_pushdown = true;
 	loader.RegisterFunction(tf);
 	auto can_call_inside_out_scalar_function =
 	    ScalarFunction("can_call_inside_out", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, CanCallInsideOut);
