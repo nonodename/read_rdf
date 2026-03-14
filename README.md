@@ -256,7 +256,7 @@ A companion function that returns the prefix declarations (@prefix / @base) from
 A read_sparql(endpoint, query) table function that sends a SPARQL SELECT against an HTTP endpoint and returns the result set as a table. This would make the extension a first-class Linked Data integration tool.
 
 ### Performance Enhancements
-5. Projection pushdown
+5. Projection pushdown -DONE
 The scan always writes all 6 columns regardless of what the query selects. DuckDB table functions support ProjectionPushdown — implementing RDFReaderFunc to check input.column_ids and skip populating unused columns would reduce allocations for common queries like SELECT subject, predicate FROM read_rdf(...).
 
 6. Streaming output for full R2RML mode

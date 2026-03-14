@@ -1,0 +1,94 @@
+# name: test/sql/projection_pushdown.test
+# description: test projection pushdown for read_rdf
+# group: [sql]
+
+require rdf
+
+# SELECT * still returns all 6 columns with correct data (NT)
+query TTTTTT
+SELECT * FROM read_rdf('test/rdf/tests.nt')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+NULL	http://example.org/person/JohnDoe	http://xmlns.com/foaf/0.1/name	John Doe	NULL	NULL
+
+# Projecting only subject and predicate returns 2 columns (NT)
+query TT
+SELECT subject, predicate FROM read_rdf('test/rdf/tests.nt')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+http://example.org/person/JohnDoe	http://xmlns.com/foaf/0.1/name
+
+# Projecting a single column (NT)
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nt')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# COUNT(*) still works (NT)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt');
+----
+9
+
+# object_datatype is correctly projected when requested (NT)
+query TT
+SELECT object, object_datatype FROM read_rdf('test/rdf/tests.nt')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/age';
+----
+30	http://www.w3.org/2001/XMLSchema#integer
+
+# object_lang is correctly projected when requested (NT)
+query TT
+SELECT object, object_lang FROM read_rdf('test/rdf/tests.nt')
+WHERE subject LIKE '%jane%'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith	en
+
+# Turtle: SELECT * still returns all 6 columns with correct data
+query TTTTTT
+SELECT * FROM read_rdf('test/rdf/tests.ttl')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+NULL	http://example.org/person/JohnDoe	http://xmlns.com/foaf/0.1/name	John Doe	NULL	NULL
+
+# Turtle: Projecting only object works
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl')
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# XML: SELECT * returns all 6 columns with correct data
+query TTTTTT
+SELECT * FROM read_rdf('test/xmlrdf/example07.rdf')
+WHERE predicate='http://purl.org/dc/elements/1.1/title';
+----
+NULL	http://www.w3.org/TR/rdf-syntax-grammar	http://purl.org/dc/elements/1.1/title	RDF/XML Syntax Specification (Revised)	NULL	NULL
+
+# XML: Projecting only subject returns 1 column
+query T
+SELECT subject FROM read_rdf('test/xmlrdf/example07.rdf')
+WHERE predicate='http://purl.org/dc/elements/1.1/title';
+----
+http://www.w3.org/TR/rdf-syntax-grammar
+
+# XML: Projecting object and predicate returns 2 columns
+query TT
+SELECT predicate, object FROM read_rdf('test/xmlrdf/example07.rdf')
+WHERE predicate='http://purl.org/dc/elements/1.1/title';
+----
+http://purl.org/dc/elements/1.1/title	RDF/XML Syntax Specification (Revised)
+
+# EXPLAIN shows no extra Projection node above the scan (pushdown active)
+query II
+EXPLAIN SELECT subject, predicate FROM read_rdf('test/rdf/tests.nt');
+----
+physical_plan	<REGEX>:.*READ_RDF.*

@@ -3,6 +3,7 @@
 #define I_TRIPLES_BUFFER_H
 #include "duckdb.hpp"
 #include "duckdb/common/file_system.hpp"
+#include <algorithm>
 #include <queue>
 
 /*
@@ -29,6 +30,18 @@ public:
 	virtual void PopulateChunk(duckdb::DataChunk &output) = 0;
 	virtual void StartParse() = 0;
 	virtual ~ITriplesBuffer() = default;
+
+	// Maps original column indices → output DataChunk slot (-1 = skip).
+	// Default {0,1,2,3,4,5} is the identity (all 6 columns present).
+	int8_t _output_slot[6] = {0, 1, 2, 3, 4, 5};
+
+	void SetColumnIds(const duckdb::vector<duckdb::column_t> &col_ids) {
+		std::fill(_output_slot, _output_slot + 6, (int8_t)-1);
+		for (duckdb::idx_t i = 0; i < col_ids.size(); i++) {
+			if (col_ids[i] < 6)
+				_output_slot[col_ids[i]] = (int8_t)i;
+		}
+	}
 
 protected:
 	// Use DuckDB FileSystem and FileHandle for reading files (allows remote filesystems)
